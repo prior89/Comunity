@@ -1,0 +1,1507 @@
+# 깔깔뉴스 백엔드 시스템 (프로덕션 강화 버전 v2.8.2)
+# 팩트 추출 → 사용자 맞춤 재작성 → 저작권 FREE 콘텐츠 생성
+
+import os
+import asyncio
+import json
+import hashlib
+import sqlite3
+import re
+import logging
+import sys
+import contextvars
+import math
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Literal, Set
+from dataclasses import dataclass, asdict
+from contextlib import contextmanager
+from zoneinfo import ZoneInfo
+from html import unescape
+from email.utils import parsedate_to_datetime, formatdate
+from time import monotonic
+import calendar
+import uuid
+
+# FastAPI
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Body, Request, Header
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
+from starlette.middleware.base import BaseHTTPMiddleware
+from pydantic import BaseModel, Field
+
+# External libraries
+from openai import AsyncOpenAI
+import aiohttp
+import feedparser
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# =====================================
+# 구성 설정 (환경변수 기반 강화)
+# =====================================
+APP_VERSION = "2.8.2"  # 단일 버전 관리
+
+USE_STRUCTURED_OUTPUTS = os.getenv("USE_STRUCTURED_OUTPUTS", "false").lower() == "true"
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_TIMEOUT = int(os.getenv("OPENAI_TIMEOUT", "60"))
+OPENAI_RETRIES = int(os.getenv("OPENAI_RETRIES", "2"))  # 재시도 횟수 설정
+
+# 배치 처리 설정
+ARTICLES_PER_BATCH = int(os.getenv("ARTICLES_PER_BATCH", "5"))
+COLLECT_TIMEOUT = int(os.getenv("COLLECT_TIMEOUT", "30"))
+SUMMARY_MAX = int(os.getenv("SUMMARY_MAX", "2000"))  # HTML 정제 상한선
+MIN_CONTENT_LEN = int(os.getenv("MIN_CONTENT_LEN", "40"))  # 최소 콘텐츠 길이
+
+# 재시도 타임아웃 설정
+RETRY_CALL_TIMEOUT = int(os.getenv("RETRY_CALL_TIMEOUT", str(OPENAI_TIMEOUT + 5)))
+
+# 데이터 보존 정책 (TTL)
+PC_TTL_DAYS = int(os.getenv("PC_TTL_DAYS", "30"))
+ACTIVITY_TTL_DAYS = int(os.getenv("ACTIVITY_TTL_DAYS", "90"))
+
+# API 보안
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY")
+
+# CORS 설정 파싱 (공백 제거)
+raw_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000")
+CORS_ORIGINS = [o.strip() for o in raw_origins.split(",") if o.strip()]
+
+# 신뢰할 수 있는 프록시 설정
+TRUSTED_PROXIES = [ip.strip() for ip in os.getenv("TRUSTED_PROXIES", "").split(",") if ip.strip()]
+
+# 디버그 모드 (추가 엔드포인트 활성화)
+DEBUG_MODE = os.getenv("DEBUG_MODE", "false").lower() == "true"
+
+# 분산 락 타임아웃 (초)
+COLLECT_LOCK_TTL = int(os.getenv("COLLECT_LOCK_TTL", "180"))
+# 락 하트비트 간격 (기사 개수)
+LOCK_HEARTBEAT_INTERVAL = int(os.getenv("LOCK_HEARTBEAT_INTERVAL", "2"))
+
+# =====================================
+# 로깅 설정 (Request ID 컨텍스트 추가)
+# =====================================
+logger = logging.getLogger("kkalkal")
+if not logger.handlers:  # 중복 핸들러 방지
+    handler = logging.StreamHandler(sys.stdout)
+    formatter = logging.Formatter('%(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+# Request ID 컨텍스트 변수
+_request_id_ctx = contextvars.ContextVar("request_id", default=None)
+
+def log_json(**kwargs):
+    """구조화된 JSON 로그 출력 (Request ID 포함)"""
+    # Request ID 자동 추가
+    rid = _request_id_ctx.get()
+    if rid:
+        kwargs.setdefault("request_id", rid)
+    
+    try:
+        logger.info(json.dumps({**kwargs, "ts": now_kst()}, ensure_ascii=False))
+    except Exception:
+        logger.info(str(kwargs))
+
+# 타임존 설정
+KST = ZoneInfo("Asia/Seoul")
+now_kst = lambda: datetime.now(tz=KST).isoformat()
+
+# 상수 정의
+VALID_ACTIONS: Set[str] = {"view", "click", "finish", "share", "like", "bookmark"}
+MAX_INTERESTS = 10
+MAX_JOB_CATEGORIES = 8
+MAX_STRING_LENGTH = 200
+
+# =====================================
+# Structured Outputs 스키마 정의
+# =====================================
+FACTS_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "who": {"type": "array", "items": {"type": "string", "maxLength": 100}, "maxItems": 10},
+        "what": {"type": "string", "maxLength": 200},
+        "when": {"type": "string", "maxLength": 100},
+        "where": {"type": "string", "maxLength": 100},
+        "why": {"type": "string", "maxLength": 200},
+        "how": {"type": "string", "maxLength": 200},
+        "numbers": {"type": "object", "additionalProperties": {"type": "string", "maxLength": 50}},
+        "quotes": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "speaker": {"type": "string", "maxLength": 100},
+                    "content": {"type": "string", "maxLength": 200}
+                },
+                "required": ["speaker", "content"]
+            }
+        },
+        "verified_facts": {"type": "array", "items": {"type": "string", "maxLength": 200}, "maxItems": 10}
+    },
+    "required": ["who", "what", "when", "where", "why", "how", "numbers", "quotes", "verified_facts"]
+}
+
+REWRITE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "title": {"type": "string", "maxLength": 200},
+        "content": {"type": "string", "maxLength": 2000},
+        "key_points": {
+            "type": "array",
+            "items": {"type": "string", "maxLength": 100},
+            "minItems": 3,
+            "maxItems": 3
+        },
+        "reading_time": {
+            "type": "string",
+            "enum": ["30초", "1-2분", "3-5분"]
+        }
+    },
+    "required": ["title", "content", "key_points", "reading_time"]
+}
+
+# =====================================
+# 유틸리티 함수
+# =====================================
+
+def clean_html_summary(s: str, limit: int = None) -> str:
+    """HTML 태그 제거 및 텍스트 정리"""
+    if not s: 
+        return ""
+    # HTML 태그 제거
+    s = re.sub(r"<[^>]+>", " ", s)
+    # HTML 엔티티 디코드
+    s = unescape(s)
+    # 여러 공백을 하나로
+    s = re.sub(r"\s+", " ", s).strip()
+    # 환경변수 또는 파라미터로 제한
+    max_len = limit if limit is not None else SUMMARY_MAX
+    return s[:max_len]
+
+def profile_hash(profile: 'UserProfile') -> str:
+    """프로필 캐시 해시 생성 (캐시 무효화용, FIPS 친화)"""
+    payload = json.dumps({
+        "reading_mode": profile.reading_mode,
+        "job_categories": profile.job_categories,
+        "interests": (
+            profile.interests_finance + profile.interests_lifestyle +
+            profile.interests_hobby + profile.interests_tech
+        )[:MAX_INTERESTS],
+        "age": profile.age,
+        "updated_at": profile.updated_at
+    }, ensure_ascii=False, sort_keys=True)
+    return hashlib.blake2s(payload.encode(), digest_size=12).hexdigest()  # 24자
+
+def clip_list(lst: List[str], max_items: int = 10, max_str_len: int = 50) -> List[str]:
+    """리스트 길이 및 문자열 길이 제한"""
+    return [str(x)[:max_str_len] for x in (lst or [])][:max_items]
+
+def _should_retry_openai(e: Exception) -> bool:
+    """OpenAI 재시도 가능 여부 판단"""
+    s = str(e).lower()
+    # 재시도 불가능한 에러들
+    if any(x in s for x in ["401", "403", "invalid api key", "content_filter", "schema", "422", "bad request"]):
+        return False
+    return True
+
+async def with_retry(coro_fn, retries: int = 3, base_delay: float = 0.5, timeout: float = None):
+    """지수 백오프와 함께 재시도 (재시도 불가 케이스 스킵)"""
+    # 타임아웃 기본값 설정
+    if timeout is None:
+        timeout = RETRY_CALL_TIMEOUT
+    
+    last_exception = None
+    for i in range(retries):
+        try:
+            return await asyncio.wait_for(coro_fn(), timeout=timeout)
+        except Exception as e:
+            last_exception = e
+            # 재시도 불가능한 에러거나 마지막 시도면 중단
+            if i >= retries - 1 or not _should_retry_openai(e):
+                break
+            # 지수 백오프 + 랜덤 지터
+            try:
+                loop = asyncio.get_running_loop()
+                jitter = loop.time() % 1
+            except RuntimeError:
+                jitter = 0.5
+            delay = base_delay * (2 ** i) * (0.5 + 0.5 * jitter)
+            await asyncio.sleep(delay)
+    raise last_exception
+
+def coerce_json(s: str) -> dict:
+    """JSON 파싱 실패 시 복구 시도"""
+    s = s.strip()
+    # 코드블록 제거
+    s = re.sub(r"^```json\s*|\s*```$", "", s)
+    # 중괄호 영역만 추출
+    m = re.search(r"\{.*\}\s*$", s, re.S)
+    s = m.group(0) if m else s
+    # 트레일링 콤마 제거
+    s = re.sub(r",\s*([}\]])", r"\1", s)
+    return json.loads(s)
+
+def _get_client_ip(request: Request) -> str:
+    """클라이언트 IP 추출 (프록시 환경 고려) - 공용 유틸"""
+    client_ip = request.client.host if request.client else "anon"
+    
+    # 신뢰할 수 있는 프록시에서 온 요청만 헤더 확인
+    if TRUSTED_PROXIES and client_ip in TRUSTED_PROXIES:
+        # X-Forwarded-For 헤더 확인
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            # 첫 번째 IP가 실제 클라이언트 IP
+            return forwarded.split(",")[0].strip()
+        
+        # X-Real-IP 헤더 확인
+        real_ip = request.headers.get("X-Real-IP")
+        if real_ip:
+            return real_ip
+    
+    return client_ip
+
+def datetime_to_http_date(dt: datetime) -> str:
+    """datetime을 HTTP Date 형식으로 변환 (RFC 7231, GMT 고정)"""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+    else:
+        dt = dt.astimezone(ZoneInfo("UTC"))
+    timestamp = calendar.timegm(dt.utctimetuple())
+    return formatdate(timestamp, usegmt=True)
+
+def make_etag(payload: bytes) -> str:
+    """바이트 데이터로부터 ETag 생성 (FIPS 친화)"""
+    return hashlib.blake2s(payload, digest_size=16).hexdigest()
+
+def apply_cache_headers(resp: Response, *, etag: Optional[str] = None, 
+                        last_modified: Optional[datetime] = None, max_age: int = 60) -> Response:
+    """응답에 캐시 헤더 적용"""
+    if etag:
+        resp.headers["ETag"] = f'W/"{etag}"'
+    if last_modified:
+        resp.headers["Last-Modified"] = datetime_to_http_date(last_modified)
+    resp.headers["Cache-Control"] = f"public, max-age={max_age}"
+    return resp
+    """datetime을 HTTP Date 형식으로 변환"""
+    timestamp = mktime(dt.timetuple())
+    return formatdate(timestamp, usegmt=True)
+
+# =====================================
+# 레이트 리미터 미들웨어 (개선된 버전)
+# =====================================
+
+class SimpleRateLimiter(BaseHTTPMiddleware):
+    """간단한 토큰 버킷 기반 레이트 리미터 (개선)"""
+    
+    def __init__(self, app, capacity=30, refill_rate=10):
+        super().__init__(app)
+        self.capacity = capacity         # 버킷 최대 토큰
+        self.refill_rate = refill_rate   # 초당 리필
+        self.buckets = {}                # ip -> (tokens, last_ts)
+
+    async def dispatch(self, request: Request, call_next):
+        ip = _get_client_ip(request)  # 공용 유틸 사용
+        tokens, last_ts = self.buckets.get(ip, (self.capacity, monotonic()))
+        now = monotonic()
+        tokens = min(self.capacity, tokens + (now - last_ts) * self.refill_rate)
+        
+        # 경로별 가중치 설정 (무거운 작업은 더 많은 토큰 소비)
+        path = request.url.path
+        if path.startswith("/api/refresh") or path.startswith("/api/personalize"):
+            need = 2
+        else:
+            need = 1
+        
+        if tokens < need:
+            # 429 응답 시에도 타임스탬프 갱신
+            retry = max(1, math.ceil((need - tokens) / self.refill_rate))
+            self.buckets[ip] = (tokens, now)
+            return JSONResponse(
+                status_code=429,
+                headers={"Retry-After": str(retry)},  # 표준 헤더 추가
+                content={"detail": "Too Many Requests", "retry_after": retry}
+            )
+        
+        self.buckets[ip] = (tokens - need, now)
+        
+        # 버킷 크기 제한 (메모리 누수 방지)
+        if len(self.buckets) > 10000:
+            # 오래된 항목 제거
+            cutoff = now - 3600
+            self.buckets = {k: v for k, v in self.buckets.items() if v[1] > cutoff}
+        
+        response = await call_next(request)
+        
+        # 남은 토큰 정보 헤더에 추가 (클라이언트 친화적)
+        remaining = max(0, int(self.buckets.get(ip, (0, now))[0]))
+        response.headers["X-RateLimit-Limit"] = str(self.capacity)
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
+        
+        # 남은 토큰이 1 미만이면, 1 토큰이 회복되기까지의 예상 초
+        avail = float(self.buckets.get(ip, (0.0, now))[0])
+        if avail < 1:
+            wait = max(1, math.ceil((1.0 - avail) / self.refill_rate))
+            response.headers["X-RateLimit-Reset"] = str(wait)
+        
+        return response
+
+# =====================================
+# 데이터 모델 (Pydantic 엄격 모드)
+# =====================================
+
+# Pydantic 버전 확인 및 호환성 레이어
+import pydantic as _pd
+from pydantic import conlist as _conlist
+
+_IS_V2 = _pd.__version__.startswith("2")
+
+def _clist(max_n: int):
+    """Pydantic v1/v2 호환 conlist 헬퍼"""
+    return _conlist(str, **({"max_length": max_n} if _IS_V2 else {"max_items": max_n}))
+
+# 타입 정의
+JobList = _clist(MAX_JOB_CATEGORIES)
+InterestList = _clist(MAX_INTERESTS)
+
+# Pydantic 엄격 모드 베이스 클래스 (v1/v2 호환)
+try:
+    from pydantic import ConfigDict  # Pydantic v2
+    class StrictModel(BaseModel):
+        """예상치 못한 필드를 차단하는 엄격한 모델 (v2)"""
+        model_config = ConfigDict(extra="forbid")
+except ImportError:  # Pydantic v1 fallback
+    class StrictModel(BaseModel):
+        """예상치 못한 필드를 차단하는 엄격한 모델 (v1)"""
+        class Config:
+            extra = "forbid"
+
+@dataclass
+class UserProfile:
+    """사용자 프로필"""
+    user_id: str
+    age: int
+    gender: str
+    location: str
+    job_categories: List[str]
+    interests_finance: List[str]
+    interests_lifestyle: List[str]
+    interests_hobby: List[str]
+    interests_tech: List[str]
+    work_style: str
+    family_status: str
+    living_situation: str
+    reading_mode: str
+    created_at: str
+    updated_at: str
+
+@dataclass
+class ExtractedFacts:
+    """추출된 팩트"""
+    who: List[str]
+    what: str
+    when: str
+    where: str
+    why: str
+    how: str
+    numbers: Dict[str, str]
+    quotes: List[Dict[str, str]]
+    verified_facts: List[str]
+
+# Pydantic 모델 (엄격 모드 적용)
+class UserProfileCreate(StrictModel):
+    """프로필 생성 요청 (user_id 제외)"""
+    age: int = Field(ge=20, le=70)
+    gender: Literal["male", "female", "other"]
+    location: str = Field(max_length=100)
+    
+    job_categories: JobList
+    interests_finance: InterestList = Field(default_factory=list)
+    interests_lifestyle: InterestList = Field(default_factory=list)
+    interests_hobby: InterestList = Field(default_factory=list)
+    interests_tech: InterestList = Field(default_factory=list)
+    
+    work_style: Literal["commute", "remote", "flexible", "shift", "freelance"]
+    family_status: Literal["single", "dating", "married", "divorced"]
+    living_situation: Literal["alone", "family", "parents", "share"]
+    
+    reading_mode: Literal["quick", "standard", "deep"] = "standard"
+
+class UserProfileCreateRequest(StrictModel):
+    """프로필 생성 요청 (통합 - user_id 포함)"""
+    user_id: str = Field(max_length=64)
+    age: int = Field(ge=20, le=70)
+    gender: Literal["male", "female", "other"]
+    location: str = Field(max_length=100)
+    
+    job_categories: JobList
+    interests_finance: InterestList = Field(default_factory=list)
+    interests_lifestyle: InterestList = Field(default_factory=list)
+    interests_hobby: InterestList = Field(default_factory=list)
+    interests_tech: InterestList = Field(default_factory=list)
+    
+    work_style: Literal["commute", "remote", "flexible", "shift", "freelance"]
+    family_status: Literal["single", "dating", "married", "divorced"]
+    living_situation: Literal["alone", "family", "parents", "share"]
+    
+    reading_mode: Literal["quick", "standard", "deep"] = "standard"
+
+class PersonalizeRequest(StrictModel):
+    """개인화 요청"""
+    article_id: str = Field(max_length=50)
+    user_id: str = Field(max_length=64)
+
+class ActivityLog(StrictModel):
+    """활동 로그"""
+    user_id: str = Field(max_length=64)
+    article_id: str = Field(max_length=50)
+    action: Literal["view", "click", "finish", "share", "like", "bookmark"]
+    duration: Optional[int] = Field(None, ge=0, le=3600)
+
+# =====================================
+# 데이터베이스 (프로덕션 버전)
+# =====================================
+
+class Database:
+    def __init__(self, db_path="kkalkalnews.db"):
+        self.db_path = db_path
+        self.init_db()
+
+    @contextmanager
+    def get_connection(self):
+        # autocommit 모드 사용 (isolation_level=None)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False, isolation_level=None)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        conn.execute("PRAGMA foreign_keys=ON;")
+        conn.execute("PRAGMA busy_timeout=5000;")
+        conn.execute("PRAGMA wal_autocheckpoint=1000;")  # ~1MB마다 체크포인트
+        conn.execute("PRAGMA journal_size_limit=104857600;")  # 100MB 상한
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+    def init_db(self):
+        with self.get_connection() as conn:
+            c = conn.cursor()
+            
+            # 테이블 생성
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS user_profiles (
+                    user_id TEXT PRIMARY KEY,
+                    age INTEGER,
+                    gender TEXT,
+                    location TEXT,
+                    job_categories TEXT,
+                    interests_finance TEXT,
+                    interests_lifestyle TEXT,
+                    interests_hobby TEXT,
+                    interests_tech TEXT,
+                    work_style TEXT,
+                    family_status TEXT,
+                    living_situation TEXT,
+                    reading_mode TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                )
+            ''')
+            
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS original_articles (
+                    id TEXT PRIMARY KEY,
+                    title TEXT,
+                    content TEXT,
+                    source TEXT,
+                    url TEXT UNIQUE,
+                    published TEXT,
+                    collected_at TEXT
+                )
+            ''')
+            
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS extracted_facts (
+                    article_id TEXT PRIMARY KEY,
+                    facts_json TEXT,
+                    extracted_at TEXT,
+                    FOREIGN KEY (article_id) REFERENCES original_articles(id) ON DELETE CASCADE
+                )
+            ''')
+            
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS personalized_content (
+                    id TEXT PRIMARY KEY,
+                    article_id TEXT,
+                    user_id TEXT,
+                    profile_hash TEXT,
+                    title TEXT,
+                    content TEXT,
+                    key_points TEXT,
+                    reading_time TEXT,
+                    created_at TEXT,
+                    FOREIGN KEY (article_id) REFERENCES original_articles(id) ON DELETE CASCADE
+                )
+            ''')
+            
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS user_activity (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT,
+                    article_id TEXT,
+                    action TEXT,
+                    duration INTEGER,
+                    created_at TEXT,
+                    FOREIGN KEY (article_id) REFERENCES original_articles(id) ON DELETE CASCADE
+                )
+            ''')
+            
+            # 분산 락 테이블 추가
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS locks (
+                    name TEXT PRIMARY KEY,
+                    holder TEXT,
+                    acquired_at TEXT
+                )
+            ''')
+            
+            # 인덱스 생성
+            c.execute('CREATE INDEX IF NOT EXISTS idx_facts_article ON extracted_facts(article_id)')
+            c.execute('CREATE INDEX IF NOT EXISTS idx_pc_article_user ON personalized_content(article_id, user_id, profile_hash)')
+            c.execute('CREATE INDEX IF NOT EXISTS idx_activity_user ON user_activity(user_id, created_at)')
+            c.execute('CREATE INDEX IF NOT EXISTS idx_articles_collected ON original_articles(collected_at DESC)')
+            c.execute('CREATE INDEX IF NOT EXISTS idx_facts_extracted ON extracted_facts(extracted_at DESC)')
+
+    def try_acquire_lock(self, lock_name: str, holder: str, ttl_sec: int = 120) -> bool:
+        """분산 락 획득 시도 (SQLite 기반)"""
+        with self.get_connection() as conn:
+            cur = conn.cursor()
+            now = now_kst()
+            cutoff = (datetime.now(tz=KST) - timedelta(seconds=ttl_sec)).isoformat()
+            
+            # 기존 락이 만료되었거나 없으면 획득
+            cur.execute('''
+                INSERT INTO locks(name, holder, acquired_at) VALUES (?, ?, ?)
+                ON CONFLICT(name) DO UPDATE SET
+                    holder = excluded.holder,
+                    acquired_at = excluded.acquired_at
+                WHERE locks.acquired_at < ?
+            ''', (lock_name, holder, now, cutoff))
+            
+            # 현재 홀더 확인
+            cur.execute('SELECT holder FROM locks WHERE name = ?', (lock_name,))
+            row = cur.fetchone()
+            return row and row['holder'] == holder
+
+    def update_lock_heartbeat(self, lock_name: str, holder: str) -> bool:
+        """분산 락 하트비트 업데이트"""
+        with self.get_connection() as conn:
+            cur = conn.cursor()
+            now = now_kst()
+            cur.execute('''
+                UPDATE locks 
+                SET acquired_at = ?
+                WHERE name = ? AND holder = ?
+            ''', (now, lock_name, holder))
+            return cur.rowcount > 0
+
+    def release_lock(self, lock_name: str, holder: str) -> None:
+        """분산 락 해제"""
+        with self.get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute('DELETE FROM locks WHERE name = ? AND holder = ?', (lock_name, holder))
+        """분산 락 해제"""
+        with self.get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute('DELETE FROM locks WHERE name = ? AND holder = ?', (lock_name, holder))
+
+    def save_user_profile(self, profile: UserProfile):
+        """사용자 프로필 저장"""
+        with self.get_connection() as conn:
+            c = conn.cursor()
+            c.execute('''
+                INSERT OR REPLACE INTO user_profiles(
+                    user_id, age, gender, location, job_categories,
+                    interests_finance, interests_lifestyle, interests_hobby, interests_tech,
+                    work_style, family_status, living_situation, reading_mode,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                profile.user_id[:64],
+                profile.age,
+                profile.gender,
+                profile.location[:100],
+                json.dumps(profile.job_categories, ensure_ascii=False),
+                json.dumps(profile.interests_finance, ensure_ascii=False),
+                json.dumps(profile.interests_lifestyle, ensure_ascii=False),
+                json.dumps(profile.interests_hobby, ensure_ascii=False),
+                json.dumps(profile.interests_tech, ensure_ascii=False),
+                profile.work_style,
+                profile.family_status,
+                profile.living_situation,
+                profile.reading_mode,
+                profile.created_at,
+                profile.updated_at
+            ))
+    
+    def get_user_profile(self, user_id: str) -> Optional[UserProfile]:
+        """사용자 프로필 조회"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM user_profiles WHERE user_id = ?', (user_id[:64],))
+            row = cursor.fetchone()
+            
+            if row:
+                return UserProfile(
+                    user_id=row['user_id'],
+                    age=row['age'],
+                    gender=row['gender'],
+                    location=row['location'],
+                    job_categories=json.loads(row['job_categories']),
+                    interests_finance=json.loads(row['interests_finance']),
+                    interests_lifestyle=json.loads(row['interests_lifestyle']),
+                    interests_hobby=json.loads(row['interests_hobby']),
+                    interests_tech=json.loads(row['interests_tech']),
+                    work_style=row['work_style'],
+                    family_status=row['family_status'],
+                    living_situation=row['living_situation'],
+                    reading_mode=row['reading_mode'],
+                    created_at=row['created_at'],
+                    updated_at=row['updated_at']
+                )
+            return None
+
+# =====================================
+# 뉴스 수집기 (RSS 파싱 강건성 개선)
+# =====================================
+
+class NewsCollector:
+    def __init__(self):
+        self.sources = [
+            {'name': '연합뉴스', 'url': 'https://www.yonhapnewstv.co.kr/browse/feed/', 'category': 'general'},
+            # 추가 소스를 여기에
+        ]
+
+    async def _fetch_feed(self, session: aiohttp.ClientSession, source: Dict) -> List[Dict]:
+        """단일 RSS 피드 가져오기 (강건성 개선)"""
+        start_time = monotonic()
+        try:
+            async with session.get(source['url']) as resp:
+                resp.raise_for_status()
+                text = await resp.text()
+                feed = feedparser.parse(text)
+                
+                # bozo 피드 감지
+                if getattr(feed, "bozo", False):
+                    bozo_err = getattr(feed, "bozo_exception", None)
+                    log_json(level="WARNING", message="feed_bozo_true", source=source['name'], error=str(bozo_err)[:200])
+                
+                if not feed.entries:
+                    log_json(level="WARNING", message="피드 항목 없음", source=source['name'])
+                    return []
+                
+                items = []
+                for entry in feed.entries[:10]:
+                    # 안전한 필드 접근
+                    url = getattr(entry, 'link', '')
+                    if not url:
+                        continue
+                    
+                    # 제목 안전 처리 (HTML 정제 포함)
+                    raw_title = getattr(entry, 'title', None) or getattr(entry, 'summary', '')[:50] or "(제목 없음)"
+                    title = clean_html_summary(raw_title, limit=200)
+                    
+                    # HTML 정제 (다양한 필드 fallback)
+                    summary = (
+                        getattr(entry, 'summary', '') or
+                        (entry.content[0].value if getattr(entry, "content", None) else '') or
+                        getattr(entry, 'description', '') or
+                        ''
+                    )
+                    content = clean_html_summary(summary)
+                    
+                    # 최소 콘텐츠 길이 체크
+                    if len(content) < MIN_CONTENT_LEN:
+                        log_json(level="DEBUG", message="콘텐츠 길이 부족", url=url[:50], length=len(content))
+                        continue
+                    
+                    # 날짜 파싱 (ID 생성 전에 먼저 계산!)
+                    pub_raw = getattr(entry, 'published', None) or getattr(entry, 'updated', None)
+                    try:
+                        if pub_raw:
+                            dt = parsedate_to_datetime(pub_raw)
+                            if dt:
+                                if dt.tzinfo:
+                                    published = dt.astimezone(KST).isoformat()
+                                else:
+                                    published = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(KST).isoformat()
+                            else:
+                                published = now_kst()
+                        else:
+                            published = now_kst()
+                    except Exception:
+                        published = now_kst()
+                    
+                    # ID 생성 (URL + published 조합으로 충돌 리스크 감소, FIPS 친화)
+                    id_source = f"{url}_{published}" if published else url
+                    aid = hashlib.blake2s(id_source.encode(), digest_size=12).hexdigest()  # 24자
+                    
+                    items.append({
+                        'id': aid,
+                        'title': title,
+                        'content': content,
+                        'url': url,
+                        'source': source['name'],
+                        'category': source.get('category', 'general'),
+                        'published': published
+                    })
+                
+                elapsed = monotonic() - start_time
+                
+                # 수집 0건 경고
+                if len(items) == 0:
+                    log_json(
+                        level="WARNING",
+                        message="피드 수집 0건",
+                        source=source['name'],
+                        duration=round(elapsed, 2)
+                    )
+                else:
+                    log_json(
+                        level="INFO",
+                        message="피드 수집 성공",
+                        source=source['name'],
+                        count=len(items),
+                        duration=round(elapsed, 2)
+                    )
+                return items
+                
+        except asyncio.TimeoutError:
+            log_json(level="ERROR", message="피드 수집 타임아웃", source=source['name'])
+            return []
+        except Exception as e:
+            log_json(level="ERROR", message=f"피드 수집 실패", source=source['name'], error=str(e)[:200])
+            return []
+
+    async def collect_news(self) -> List[Dict]:
+        """모든 소스에서 뉴스 수집 (예외 처리 개선)"""
+        async with aiohttp.ClientSession(
+            headers={"User-Agent": "kkalkalnews/1.0"},
+            timeout=aiohttp.ClientTimeout(total=COLLECT_TIMEOUT)
+        ) as session:
+            tasks = [self._fetch_feed(session, s) for s in self.sources]
+            batches = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 예외 처리 개선
+            articles = []
+            for i, batch in enumerate(batches):
+                if isinstance(batch, Exception):
+                    log_json(
+                        level="ERROR", 
+                        message="collector_task_failed",
+                        source=self.sources[i]['name'] if i < len(self.sources) else "unknown",
+                        error=str(batch)[:200]
+                    )
+                    continue
+                articles.extend(batch)
+            
+            return articles
+
+# =====================================
+# AI 엔진 (Structured Outputs 지원)
+# =====================================
+
+class AIEngine:
+    """AI 기반 콘텐츠 처리 엔진 (Structured Outputs 지원)"""
+
+    def __init__(self, api_key: str):
+        if not api_key or api_key == "test-key":
+            raise RuntimeError("OPENAI_API_KEY가 설정되어 있지 않습니다.")
+        self.client = AsyncOpenAI(
+            api_key=api_key, 
+            timeout=float(OPENAI_TIMEOUT),
+            max_retries=0  # 우리 쪽 with_retry만 사용
+        )
+        self.model = OPENAI_MODEL
+        self._structured_outputs_tested = False
+        self._supports_structured = None
+        self._concurrent_limit = asyncio.Semaphore(3)
+
+    async def _call_with_schema(self, messages: list, schema: dict, temperature: float = 0.1, max_tokens: int = 800):
+        """Structured Outputs 호출 (런타임 폴백 지원)"""
+        
+        # 첫 호출에서만 지원 여부 테스트
+        if USE_STRUCTURED_OUTPUTS and not self._structured_outputs_tested:
+            self._structured_outputs_tested = True
+            try:
+                async with self._concurrent_limit:
+                    test_response = await self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[{"role": "user", "content": "test"}],
+                        temperature=0,
+                        max_tokens=10,
+                        timeout=10.0,
+                        response_format={
+                            "type": "json_schema",
+                            "json_schema": {
+                                "name": "test",
+                                "schema": {"type": "object", "properties": {"test": {"type": "string"}}, "required": ["test"]},
+                                "strict": True
+                            }
+                        }
+                    )
+                self._supports_structured = True
+                log_json(level="INFO", message="Structured Outputs 지원 확인됨", model=self.model)
+            except Exception as e:
+                self._supports_structured = False
+                log_json(level="INFO", message="Structured Outputs 미지원, JSON 모드 사용", model=self.model, error=str(e)[:100])
+        
+        # 실제 호출
+        async with self._concurrent_limit:
+            start = monotonic()
+            
+            if USE_STRUCTURED_OUTPUTS and self._supports_structured:
+                try:
+                    response = await self.client.chat.completions.create(
+                        model=self.model,
+                        messages=messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        timeout=float(OPENAI_TIMEOUT),
+                        response_format={
+                            "type": "json_schema",
+                            "json_schema": {
+                                "name": schema.get("name", "Response"),
+                                "schema": schema.get("schema", schema),
+                                "strict": True
+                            }
+                        }
+                    )
+                except Exception as e:
+                    if "schema" in str(e).lower() or "400" in str(e) or "422" in str(e):
+                        log_json(level="WARNING", message="Structured Outputs 실패, JSON 모드로 폴백", error=str(e)[:100])
+                        self._supports_structured = False
+                    else:
+                        raise
+            
+            # JSON 모드 사용 (폴백 또는 기본)
+            if not (USE_STRUCTURED_OUTPUTS and self._supports_structured):
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    timeout=float(OPENAI_TIMEOUT),
+                    response_format={"type": "json_object"}
+                )
+            
+            # 응답 메트릭 로깅
+            latency_ms = int((monotonic() - start) * 1000)
+            finish_reason = getattr(response.choices[0], "finish_reason", None)
+            usage = getattr(response, "usage", None)
+            
+            log_json(
+                level="DEBUG",
+                message="openai_usage",
+                mode="structured" if (USE_STRUCTURED_OUTPUTS and self._supports_structured) else "json",
+                finish_reason=finish_reason,
+                latency_ms=latency_ms,
+                prompt_tokens=getattr(usage, "prompt_tokens", None),
+                completion_tokens=getattr(usage, "completion_tokens", None),
+                total_tokens=getattr(usage, "total_tokens", None)
+            )
+            
+            if finish_reason == "length":
+                log_json(level="WARNING", message="응답이 max_tokens에 도달했습니다. max_tokens 증가 필요")
+            elif finish_reason == "content_filter":
+                log_json(level="WARNING", message="콘텐츠 필터로 응답이 차단되었습니다")
+            
+            return response
+
+    async def extract_facts(self, article: Dict) -> ExtractedFacts:
+        """팩트 추출 (Structured Outputs 런타임 폴백)"""
+        system = "너는 팩트 추출기다. 반드시 JSON만 출력한다. 의견/추측/전망은 제외하라."
+        user = f"""
+기사 제목: {article['title']}
+기사 내용: {article['content']}
+
+이 JSON 스키마로만 응답:
+{{
+  "who": ["string"],
+  "what": "string",
+  "when": "string",
+  "where": "string",
+  "why": "string",
+  "how": "string",
+  "numbers": {{"항목":"수치"}},
+  "quotes": [{{"speaker":"string","content":"string"}}],
+  "verified_facts": ["string"]
+}}
+"""
+        
+        async def _call():
+            return await self._call_with_schema(
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user}
+                ],
+                schema={"name": "ExtractedFacts", "schema": FACTS_SCHEMA},
+                temperature=0.1,
+                max_tokens=800
+            )
+        
+        try:
+            r = await with_retry(_call, retries=3, base_delay=1.0)
+            
+            if not getattr(r, "choices", None) or not r.choices:
+                log_json(
+                    level="ERROR", 
+                    message="openai_empty_choices", 
+                    model=self.model, 
+                    op="extract_facts"
+                )
+                raise RuntimeError("Empty OpenAI choices")
+            
+            raw_content = getattr(r.choices[0].message, "content", None) or "{}"
+            try:
+                data = json.loads(raw_content)
+            except json.JSONDecodeError:
+                log_json(level="WARNING", message="JSON 파싱 실패, 복구 시도", content_preview=raw_content[:100])
+                data = coerce_json(raw_content)
+            
+            return ExtractedFacts(
+                who=(data.get("who", []) or [])[:10],
+                what=(data.get("what", "") or "")[:200],
+                when=(data.get("when", "") or "")[:100],
+                where=(data.get("where", "") or "")[:100],
+                why=(data.get("why", "") or "")[:200],
+                how=(data.get("how", "") or "")[:200],
+                numbers=data.get("numbers", {}) or {},
+                quotes=(data.get("quotes", []) or [])[:5],
+                verified_facts=(data.get("verified_facts", []) or [])[:10]
+            )
+            
+        except Exception as e:
+            log_json(level="ERROR", message="팩트 추출 실패", error=str(e), article_id=article.get('id'))
+            return ExtractedFacts(
+                who=[], 
+                what=article.get('title', '')[:200],
+                when="", 
+                where="",
+                why="", 
+                how="", 
+                numbers={}, 
+                quotes=[], 
+                verified_facts=[]
+            )
+
+    async def rewrite_for_user(self, facts: ExtractedFacts, profile: UserProfile) -> Dict:
+        """사용자 맞춤 재작성 (재시도 정책 최적화)"""
+        mode_guides = {
+            "quick": {"sentences": [3, 5], "time": "30초", "style": "핵심만 간결하게"},
+            "standard": {"sentences": [10, 15], "time": "1-2분", "style": "적절한 배경 설명"},
+            "deep": {"sentences": [20, 30], "time": "3-5분", "style": "상세 분석"}
+        }
+        guide = mode_guides[profile.reading_mode]
+        
+        all_interests = (
+            profile.interests_finance + profile.interests_lifestyle +
+            profile.interests_hobby + profile.interests_tech
+        )[:MAX_INTERESTS]
+        
+        primary_job = profile.job_categories[0] if profile.job_categories else "일반"
+        primary_interest = all_interests[0] if all_interests else "일반"
+        
+        numbers_instruction = ""
+        if facts.numbers:
+            numbers_instruction = f"\n- 첫 단락에 다음 수치 중 하나를 반드시 포함: {list(facts.numbers.values())[:3]}"
+
+        system = "너는 뉴스 재작성기다. 반드시 JSON만 출력한다. 한국어로 작성한다."
+        user = f"""
+팩트 데이터:
+- who: {', '.join(facts.who[:5])}
+- what: {facts.what}
+- when: {facts.when}
+- where: {facts.where}
+- why: {facts.why}
+- how: {facts.how}
+- numbers: {json.dumps(facts.numbers, ensure_ascii=False)}
+
+독자 프로필:
+- {profile.age}세 {profile.gender}
+- 직업: {', '.join(profile.job_categories[:3])}
+- 관심사: {', '.join(all_interests[:5])}
+- 상황: {profile.work_style}, {profile.family_status}
+
+작성 요구사항:
+- 문장 수: {guide['sentences'][0]}-{guide['sentences'][1]}
+- 읽기 시간: {guide['time']}
+- 톤: {guide['style']}
+- {primary_job} 업무 관점 포함
+- {primary_interest} 관련성 언급{numbers_instruction}
+
+JSON 형식:
+{{
+  "title": "매력적인 헤드라인",
+  "content": "본문 내용",
+  "key_points": ["핵심1", "핵심2", "핵심3"],
+  "reading_time": "{guide['time']}"
+}}
+"""
+        
+        async def _call():
+            return await self._call_with_schema(
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user}
+                ],
+                schema={"name": "PersonalizedArticle", "schema": REWRITE_SCHEMA},
+                temperature=0.6,
+                max_tokens=1000
+            )
+        
+        try:
+            # 개인화는 재시도 횟수 줄여서 응답 시간 최적화
+            r = await with_retry(_call, retries=OPENAI_RETRIES, base_delay=1.0)
+            
+            if not getattr(r, "choices", None) or not r.choices:
+                log_json(
+                    level="ERROR", 
+                    message="openai_empty_choices", 
+                    model=self.model, 
+                    op="rewrite_for_user"
+                )
+                return {
+                    "title": facts.what or "뉴스",
+                    "content": "콘텐츠를 생성할 수 없습니다.",
+                    "key_points": [],
+                    "reading_time": guide["time"]
+                }
+            
+            raw_content = getattr(r.choices[0].message, "content", None) or "{}"
+            try:
+                obj = json.loads(raw_content)
+            except json.JSONDecodeError:
+                log_json(level="WARNING", message="JSON 파싱 실패, 복구 시도", content_preview=raw_content[:100])
+                obj = coerce_json(raw_content)
+            
+            return {
+                "title": (obj.get("title") or facts.what or "뉴스")[:200],
+                "content": (obj.get("content") or "")[:2000],
+                "key_points": [p[:100] for p in (obj.get("key_points") or [])[:3]],
+                "reading_time": obj.get("reading_time") or guide["time"]
+            }
+            
+        except Exception as e:
+            log_json(level="ERROR", message="재작성 실패", error=str(e), user_id=profile.user_id[:10])
+            return {
+                "title": facts.what or "뉴스",
+                "content": f"{facts.what}. {facts.when}에 발생한 사건입니다.",
+                "key_points": facts.verified_facts[:3],
+                "reading_time": guide["time"]
+            }
+
+# =====================================
+# 메인 처리 파이프라인
+# =====================================
+
+class NewsProcessor:
+    """뉴스 처리 파이프라인"""
+    
+    def __init__(self, api_key: str):
+        self.db = Database()
+        self.collector = NewsCollector()
+        self.ai_engine = AIEngine(api_key)
+        self._collect_lock = asyncio.Lock()  # 로컬 락 (폴백용)
+        self._lock_holder = None
+    
+    async def process_news_batch(self):
+        """뉴스 수집 및 처리 (분산 락 지원)"""
+        # 분산 락 시도
+        holder = f"proc_{uuid.uuid4().hex[:8]}"
+        
+        if not self.db.try_acquire_lock("collector", holder, COLLECT_LOCK_TTL):
+            # 로컬 락 체크 (단일 프로세스 환경)
+            if self._collect_lock.locked():
+                log_json(level="INFO", message="수집 스킵: 이전 배치 실행 중")
+                return False
+            
+            log_json(level="INFO", message="수집 스킵: 다른 노드에서 실행 중")
+            return False
+        
+        self._lock_holder = holder
+        
+        try:
+            async with self._collect_lock:  # 로컬 락도 함께 사용
+                # 1. 뉴스 수집
+                articles = await self.collector.collect_news()
+                log_json(level="INFO", message="뉴스 수집 완료", count=len(articles))
+                
+                # 2. 각 기사 처리 (환경변수로 배치 크기 조절)
+                processed = 0
+                last_heartbeat = monotonic()  # 시간 기반 하트비트
+                
+                for idx, article in enumerate(articles[:ARTICLES_PER_BATCH]):
+                    # 하트비트 업데이트 (N개마다 또는 30초마다)
+                    now = monotonic()
+                    if idx > 0 and (idx % LOCK_HEARTBEAT_INTERVAL == 0 or now - last_heartbeat > 30):
+                        if not self.db.update_lock_heartbeat("collector", holder):
+                            log_json(level="ERROR", message="락 하트비트 실패, 다른 노드가 인수했을 수 있음")
+                            break  # 즉시 중단
+                        last_heartbeat = now
+                    
+                    try:
+                        # URL 중복 체크
+                        with self.db.get_connection() as conn:
+                            cur = conn.cursor()
+                            cur.execute("SELECT 1 FROM original_articles WHERE url = ?", (article['url'],))
+                            if cur.fetchone():
+                                continue
+                        
+                        # 원본 저장
+                        with self.db.get_connection() as conn:
+                            cur = conn.cursor()
+                            try:
+                                cur.execute('''
+                                    INSERT OR IGNORE INTO original_articles
+                                    (id, title, content, source, url, published, collected_at)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                                ''', (
+                                    article['id'],
+                                    article['title'],
+                                    article['content'],
+                                    article['source'],
+                                    article['url'],
+                                    article['published'],
+                                    now_kst()
+                                ))
+                                
+                                if cur.rowcount == 0:
+                                    log_json(level="DEBUG", message="중복 기사 스킵", url=article['url'][:50])
+                                    continue
+                        
+                        # 팩트 추출
+                        facts = await self.ai_engine.extract_facts(article)
+                        
+                        # 팩트 저장
+                        with self.db.get_connection() as conn:
+                            cur = conn.cursor()
+                            cur.execute('''
+                                INSERT OR REPLACE INTO extracted_facts
+                                (article_id, facts_json, extracted_at)
+                                VALUES (?, ?, ?)
+                            ''', (
+                                article['id'],
+                                json.dumps(asdict(facts), ensure_ascii=False),
+                                now_kst()
+                            ))
+                        
+                        processed += 1
+                        log_json(
+                            level="INFO",
+                            message="기사 처리 완료",
+                            processed=processed,
+                            title=article['title'][:30]
+                        )
+                        
+                    except Exception as e:
+                        log_json(level="ERROR", message="기사 처리 실패", error=str(e))
+                        continue
+                
+                log_json(level="INFO", message="배치 처리 완료", processed=processed)
+                return True
+                        
+        except Exception as e:
+            log_json(level="ERROR", message="배치 처리 실패", error=str(e))
+            return False
+        finally:
+            # 분산 락 해제
+            if self._lock_holder:
+                self.db.release_lock("collector", self._lock_holder)
+                self._lock_holder = None
+    
+    async def generate_personalized(self, article_id: str, user_id: str) -> Dict:
+        """개인화 콘텐츠 생성 (캐시 무효화 포함)"""
+        
+        # 사용자 프로필 조회
+        profile = self.db.get_user_profile(user_id)
+        if not profile:
+            raise ValueError("사용자 프로필을 찾을 수 없습니다")
+        
+        # 프로필 해시를 포함한 캐시 키 (FIPS 친화)
+        ph = profile_hash(profile)
+        cache_key = f"{article_id}_{user_id}_{ph}"
+        cache_id = hashlib.blake2s(cache_key.encode(), digest_size=12).hexdigest()  # 24자
+        
+        # 캐시 확인
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT * FROM personalized_content
+                WHERE id = ?
+            ''', (cache_id,))
+            
+            cached = cursor.fetchone()
+            if cached:
+                log_json(level="DEBUG", message="캐시 히트", cache_id=cache_id)
+                return {
+                    "title": cached['title'],
+                    "content": cached['content'],
+                    "key_points": json.loads(cached['key_points']),
+                    "reading_time": cached['reading_time'],
+                    "cached": True
+                }
+        
+        # 팩트 조회
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT facts_json FROM extracted_facts
+                WHERE article_id = ?
+            ''', (article_id,))
+            
+            fact_row = cursor.fetchone()
+            if not fact_row:
+                raise ValueError("팩트를 찾을 수 없습니다")
+            
+            facts_dict = json.loads(fact_row['facts_json'])
+            facts = ExtractedFacts(**facts_dict)
+        
+        # AI 재작성
+        personalized = await self.ai_engine.rewrite_for_user(facts, profile)
+        
+        # 캐시 저장
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO personalized_content
+                (id, article_id, user_id, profile_hash, title, content, key_points, reading_time, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                cache_id,
+                article_id,
+                user_id,
+                ph,
+                personalized['title'],
+                personalized['content'],
+                json.dumps(personalized['key_points'], ensure_ascii=False),
+                personalized['reading_time'],
+                now_kst()
+            ))
+        
+        log_json(level="INFO", message="개인화 생성 완료", cache_id=cache_id, user_id=user_id)
+        personalized['cached'] = False
+        return personalized
+
+# =====================================
+# FastAPI 앱
+# =====================================
+
+app = FastAPI(
+    title="깔깔뉴스 API",
+    description="AI 기반 완전 맞춤형 뉴스 플랫폼",
+    version=APP_VERSION
+)
+
+# CORS 설정 (보안 강화)
+if CORS_ORIGINS == ["*"]:
+    log_json(level="WARNING", message="CORS: 와일드카드 사용 중. 프로덕션에서는 특정 도메인 설정 필요")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization"],
+        expose_headers=["X-Request-ID", "ETag", "Last-Modified", "Cache-Control"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization", "If-None-Match", "If-Modified-Since"],
+        expose_headers=["X-Request-ID", "ETag", "Last-Modified", "Cache-Control"],
+        max_age=3600,
+    )
+
+# 레이트 리미터 추가
+app.add_middleware(SimpleRateLimiter, capacity=60, refill_rate=20)
+
+# 전역 프로세서
+processor: Optional[NewsProcessor] = None
+
+# =====================================
+# 보안 및 초기화 헬퍼
+# =====================================
+
+def _require_ready():
+    """서비스 준비 상태 확인"""
+    if processor is None:
+        raise HTTPException(status_code=503, detail="Service is starting, try again")
+
+def require_api_key(request: Request):
+    """API 키 검증 (쓰기 엔드포인트용)"""
+    if not INTERNAL_API_KEY:
+        return  # API 키 설정 안 됨 - 개발 환경
+    if request.headers.get("X-API-Key") != INTERNAL_API_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+# =====================================
+# 액세스 로그 미들웨어 (Request ID 컨텍스트 설정)
+# =====================================
+
+@app.middleware("http")
+async def access_log(request: Request, call_next):
+    """액세스 로그 (예외 처리 포함) + Vary 헤더"""
+    start_time = monotonic()
+    
+    # Request ID 생성/추출
+    request_id = request.headers.get("X-Request-ID") or f"req_{os.urandom(8).hex()}"
+    
+    # 컨텍스트에 Request ID 설정
+    token = _request_id_ctx.set(request_id)
+    
+    # 클라이언트 IP (레이트리미터와 동일한 로직 사용)
+    client_ip = _get_client_ip(request)
+    
+    try:
+        try:
+            response = await call_next(request)
+            status = response.status_code
+        except Exception as e:
+            # 예외 발생 시에도 ACCESS 로그 남김
+            status = 500
+            log_json(
+                level="ACCESS",
+                path=str(request.url.path),
+                method=request.method,
+                status=status,
+                ip=client_ip,
+                duration=round(monotonic() - start_time, 3),
+                error=str(e)[:200]
+            )
+            raise
+        
+        # 정상 응답일 때 로그
+        response.headers["X-Request-ID"] = request_id
+        
+        # CORS 관련 Vary 헤더 추가 (기존 값 보존)
+        if "Origin" in request.headers and CORS_ORIGINS != ["*"]:
+            prev_vary = response.headers.get("Vary")
+            if not prev_vary:
+                response.headers["Vary"] = "Origin"
+            elif "Origin" not in [v.strip() for v in prev_vary.split(",")]:
+                response.headers["Vary"] = f"{prev_vary}, Origin"
+        
+        log_json(
+            level="ACCESS",
+            path=str(request.url.path),
+            method=request.method,
+            status=status,
+            ip=client_ip,
+            duration=round(monotonic() - start_time, 3)
+        )
+        
+        return response
+    finally:
+        # 로그 출력 후 컨텍스트 리셋
+        _request_id_ctx.reset(token)
+
+# =====================================
+# 이벤트 핸들러
+# =====================================
+
+@app.on_event("startup")
+async def startup():
+    """앱 시작시 초기화"""
+    global processor
+    
+    # 프로덕션에서 API 키 강제
+    if not DEBUG_MODE and not INTERNAL_API_KEY:
+        raise RuntimeError("INTERNAL_API_KEY is required in production (DEBUG_MODE=false)")
+    elif not INTERNAL_API_KEY:
+        log_json(level="WARNING", message="INTERNAL_API_KEY not set; write endpoints unprotected")
+    
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("환경변수 OPENAI_API_KEY가 필요합니다.")
+    processor = NewsProcessor(api_key)
+    
+    log_json(
+        level="INFO",
+        message="서버 시작",
+        version=APP_VERSION,
+        structured_outputs=USE_STRUCTURED_OUTPUTS,
+        model=OPENAI_MODEL,
+        articles_per_batch=ARTICLES_PER_BATCH,
+        collect_timeout=COLLECT_TIMEOUT,
+        summary_max=SUMMARY_MAX,
+        debug_mode=DEBUG_MODE,
+        openai_retries=OPENAI_RETRIES,
+        ttl_days={"pc": PC_TTL_DAYS, "activity": ACTIVITY_TTL_DAYS},
+        collect_lock_ttl=COLLECT_LOCK_TTL
+    )
+
+    async def _boot():
+        try:
+            await processor.process_news_batch()
+            log_json(level="INFO", message="초기 뉴스 수집 완료")
+        except Exception as e:
+            log_json(level="ERROR", message="초기 뉴스 수집 실패", error=str(e))
+    
+    async def _cleanup_job():
+        """데이터 보존 정책 (TTL) 정리 작업 (개선)"""
+        from datetime import datetime, timedelta
+        
+        async def _run_once():
+            try:
+                cutoff_pc = (datetime.now(tz=KST) - timedelta(days=PC_TTL_DAYS)).isoformat()
+                cutoff_act = (datetime.now(tz=KST) - timedelta(days=ACTIVITY_TTL_DAYS)).isoformat()
+                
+                with processor.db.get_connection() as conn:
+                    cur = conn.cursor()
+                    cur.execute("DELETE FROM personalized_content WHERE created_at < ?", (cutoff_pc,))
+                    pc_deleted = cur.rowcount
+                    cur.execute("DELETE FROM user_activity WHERE created_at < ?", (cutoff_act,))
+                    act_deleted = cur.rowcount
+                
+                log_json(
+                    level="INFO",
+                    message="cleanup_done",
+                    pc_deleted=pc_deleted,
+                    act_deleted=act_deleted
+                )
+            except Exception as e:
+                log_json(level="ERROR", message="cleanup_failed", error=str(e)[:200])
+        
+        # 즉시 1회 실행
+        await _run_once()
+        
+        # 주기 실행 (매일) + 주간 WAL 정리
+        day = 24 * 3600
+        week = 7 * day
+        elapsed = 0
+        
+        while True:
+            await asyncio.sleep(day)
+            await _run_once()
+            elapsed += day
+            
+            # 주 1회 WAL truncate
+            if elapsed >= week:
+                elapsed = 0
+                try:
+                    with processor.db.get_connection() as conn:
+                        conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+                    log_json(level="INFO", message="wal_truncate_ok")
+                except Exception as e:
+                    log_json(level="ERROR", message="wal_truncate_failed", error=str(e)[:200])
+    
+    asyncio.create_task(_boot())
+    asyncio.create_task(_cleanup_job())
