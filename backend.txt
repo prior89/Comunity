@@ -1446,6 +1446,18 @@ async def access_log(request: Request, call_next):
             duration=round(monotonic() - start_time, 3)
         )
         
+        # Prometheus 메트릭 기록 (2025년 모니터링 표준)
+        try:
+            duration = monotonic() - start_time
+            if 'HTTP_LATENCY' in globals():
+                HTTP_LATENCY.labels(
+                    path=str(request.url.path),
+                    method=request.method,
+                    status=str(status)
+                ).observe(duration)
+        except Exception:
+            pass  # 메트릭 실패는 조용히 무시
+        
         return response
     finally:
         # 로그 출력 후 컨텍스트 리셋
@@ -1509,12 +1521,13 @@ async def startup():
                     cur.execute("DELETE FROM user_activity WHERE created_at < ?", (cutoff_act,))
                     act_deleted = cur.rowcount
                 
-                # PRAGMA optimize 실행 (2025년 권장 주기 유지보수)
-                try:
-                    conn.execute("PRAGMA optimize;")
-                    log_json(level="INFO", message="pragma_optimize_ok")
-                except Exception as opt_e:
-                    log_json(level="ERROR", message="pragma_optimize_failed", error=str(opt_e)[:200])
+            # PRAGMA optimize 실행 (별도 커넥션으로 안전하게)
+            try:
+                with processor.db.get_connection() as opt_conn:
+                    opt_conn.execute("PRAGMA optimize;")
+                log_json(level="INFO", message="pragma_optimize_ok")
+            except Exception as opt_e:
+                log_json(level="ERROR", message="pragma_optimize_failed", error=str(opt_e)[:200])
                 
                 log_json(
                     level="INFO",
@@ -1551,7 +1564,7 @@ async def startup():
     asyncio.create_task(_boot())
     asyncio.create_task(_cleanup_job())
 
-# ========== Minimal API routes (v3.0.5) ==========
+# ========== Minimal API routes (v3.0.6) ==========
 
 # Prometheus 메트릭 (2025년 모니터링 표준)
 try:
