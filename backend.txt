@@ -1523,9 +1523,7 @@ async def startup():
     asyncio.create_task(_boot())
     asyncio.create_task(_cleanup_job())
 
-# ========== Minimal API routes (v3.0.1) ==========
-
-from fastapi import Depends
+# ========== Minimal API routes (v3.0.2) ==========
 
 @app.get("/healthz")
 async def healthz():
