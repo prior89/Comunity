@@ -14,6 +14,13 @@ from ...core.logging import get_logger
 
 logger = get_logger("api.system")
 
+# Prometheus 메트릭 (선택적 임포트)
+try:
+    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
+
 router = APIRouter(prefix="/api/system", tags=["system"])
 
 # v3.0.1 추가: 간단한 헬스체크 엔드포인트
@@ -26,6 +33,15 @@ async def healthz():
 async def readyz():
     """Kubernetes 스타일 준비 상태 체크 (레디니스)"""
     return {"ready": True, "timestamp": datetime.now().isoformat()}
+
+@router.get("/metrics")
+async def metrics():
+    """Prometheus 메트릭 노출 (2025년 모니터링 표준)"""
+    if not PROMETHEUS_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Prometheus 클라이언트가 설치되지 않았습니다")
+    
+    from fastapi import Response
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @router.get("/health", response_model=HealthCheck)

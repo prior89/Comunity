@@ -1509,6 +1509,13 @@ async def startup():
                     cur.execute("DELETE FROM user_activity WHERE created_at < ?", (cutoff_act,))
                     act_deleted = cur.rowcount
                 
+                # PRAGMA optimize 실행 (2025년 권장 주기 유지보수)
+                try:
+                    conn.execute("PRAGMA optimize;")
+                    log_json(level="INFO", message="pragma_optimize_ok")
+                except Exception as opt_e:
+                    log_json(level="ERROR", message="pragma_optimize_failed", error=str(opt_e)[:200])
+                
                 log_json(
                     level="INFO",
                     message="cleanup_done",
@@ -1544,7 +1551,24 @@ async def startup():
     asyncio.create_task(_boot())
     asyncio.create_task(_cleanup_job())
 
-# ========== Minimal API routes (v3.0.2) ==========
+# ========== Minimal API routes (v3.0.5) ==========
+
+# Prometheus 메트릭 (2025년 모니터링 표준)
+try:
+    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, Counter, Histogram
+    
+    HTTP_LATENCY = Histogram("http_request_latency_seconds", "Request latency", ["path", "method", "status"])
+    OPENAI_TOKENS = Counter("openai_tokens_total", "OpenAI tokens", ["type", "model"])
+    CACHE_HITS = Counter("cache_hits_total", "Cache hits", ["type"])
+    
+    @app.get("/metrics")
+    def metrics():
+        """Prometheus 메트릭 노출"""
+        return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+        
+except ImportError:
+    # prometheus_client 없으면 무시
+    pass
 
 @app.get("/healthz")
 async def healthz():
