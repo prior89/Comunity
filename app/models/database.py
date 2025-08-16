@@ -270,13 +270,22 @@ class Database:
     def save_personalized_content(self, content_id: str, article_id: str, 
                                  user_id: str, profile_hash: str, 
                                  personalized: Dict[str, Any]) -> None:
-        """개인화 콘텐츠 저장"""
+        """개인화 콘텐츠 저장 (created_at 보존 UPSERT)"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT OR REPLACE INTO personalized_content
+                INSERT INTO personalized_content
                 (id, article_id, user_id, profile_hash, title, content, key_points, reading_time, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    article_id=excluded.article_id,
+                    user_id=excluded.user_id,
+                    profile_hash=excluded.profile_hash,
+                    title=excluded.title,
+                    content=excluded.content,
+                    key_points=excluded.key_points,
+                    reading_time=excluded.reading_time
+                -- created_at은 기존 값을 유지 (업데이트하지 않음)
             ''', (
                 content_id,
                 article_id,
