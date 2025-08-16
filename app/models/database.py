@@ -144,16 +144,30 @@ class Database:
         logger.info("데이터베이스 초기화 완료")
     
     def save_user_profile(self, profile: UserProfile) -> None:
-        """사용자 프로필 저장"""
+        """사용자 프로필 저장 (created_at 보존 UPSERT)"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT OR REPLACE INTO user_profiles(
+                INSERT INTO user_profiles(
                     user_id, age, gender, location, job_categories,
                     interests_finance, interests_lifestyle, interests_hobby, interests_tech,
                     work_style, family_status, living_situation, reading_mode,
                     created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    age=excluded.age,
+                    gender=excluded.gender,
+                    location=excluded.location,
+                    job_categories=excluded.job_categories,
+                    interests_finance=excluded.interests_finance,
+                    interests_lifestyle=excluded.interests_lifestyle,
+                    interests_hobby=excluded.interests_hobby,
+                    interests_tech=excluded.interests_tech,
+                    work_style=excluded.work_style,
+                    family_status=excluded.family_status,
+                    living_situation=excluded.living_situation,
+                    reading_mode=excluded.reading_mode,
+                    updated_at=excluded.updated_at
             ''', (
                 profile.user_id[:64],
                 profile.age,

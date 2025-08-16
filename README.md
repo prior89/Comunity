@@ -1,8 +1,8 @@
-# 깔깔뉴스 API v3.0.0
+# 깔깔뉴스 API v3.0.2
 
 AI 기반 완전 맞춤형 뉴스 플랫폼 - 2025년 최신 기술 스택 적용
 
-## 🚀 주요 개선사항 (v2.8.2 → v3.0.0)
+## 🚀 주요 개선사항 (v2.8.2 → v3.0.2)
 
 ### 🏗️ 아키텍처 혁신
 - ✅ **모듈화된 구조**: 1507줄 단일 파일 → 구조화된 모듈 시스템
@@ -333,4 +333,36 @@ curl localhost:8000/api/system/stats
 
 ---
 
-**🎯 v3.0.2 완료**: 프로덕션 준비 완료된 확장 가능하고 안정적인 뉴스 플랫폼 ✨
+## ✅ **v3.0.3 고급 최적화 완료 사항**
+
+### 🚀 **캐시 최적화 완성**
+- ✅ **프로필 created_at 보존**: SQLite UPSERT로 캐시 적중률 극대화
+- ✅ **ETag 조건부 요청**: 304 Not Modified 지원으로 대역폭 절약
+- ✅ **OpenAI 재시도 완전 일관화**: 전체 코드베이스 OPENAI_RETRIES=2 통일
+
+### 🛡️ **코드 품질 완성**
+- ✅ **불필요한 임포트 정리**: BackgroundTasks, Query, Body, Header 제거
+- ✅ **개선된 지터 알고리즘**: random.random() 기반 균등 분포
+- ✅ **미사용 의존성 제거**: redis, pydantic-settings 정리
+
+### 🧪 **검증 체크리스트**
+```bash
+# 1) 기본 동작 확인
+uvicorn main:app --reload
+curl localhost:8000/api/system/healthz
+
+# 2) ETag 캐싱 테스트
+curl -X POST localhost:8000/api/news/personalize \
+  -H "Content-Type: application/json" \
+  -d '{"article_id":"test","user_id":"u1"}'
+
+# 3) 304 Not Modified 확인
+curl -X POST localhost:8000/api/news/personalize \
+  -H "Content-Type: application/json" \
+  -H "If-None-Match: W/\"[etag_from_step2]\"" \
+  -d '{"article_id":"test","user_id":"u1"}'
+```
+
+---
+
+**🎯 v3.0.3 완료**: 엔터프라이즈급 성능 최적화 및 캐싱 전략 완성 ✨

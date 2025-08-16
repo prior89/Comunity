@@ -29,9 +29,10 @@ from email.utils import parsedate_to_datetime, formatdate
 from time import monotonic
 import calendar
 import uuid
+import random
 
 # FastAPI
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Body, Request, Header
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -67,7 +68,7 @@ httpx==0.25.2
 # =====================================
 # 구성 설정 (환경변수 기반 강화)
 # =====================================
-APP_VERSION = "3.0.1"  # v3.0.1 - 코드 품질 개선 버전
+APP_VERSION = "3.0.2"  # v3.0.2 - 프로덕션 준비 완성 버전
 
 USE_STRUCTURED_OUTPUTS = os.getenv("USE_STRUCTURED_OUTPUTS", "false").lower() == "true"
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
@@ -252,12 +253,8 @@ async def with_retry(coro_fn, retries: int = 3, base_delay: float = 0.5, timeout
             # 재시도 불가능한 에러거나 마지막 시도면 중단
             if i >= retries - 1 or not _should_retry_openai(e):
                 break
-            # 지수 백오프 + 랜덤 지터
-            try:
-                loop = asyncio.get_running_loop()
-                jitter = loop.time() % 1
-            except RuntimeError:
-                jitter = 0.5
+            # 지수 백오프 + 개선된 랜덤 지터
+            jitter = random.random()  # 0.0 ~ 1.0 균등 분포
             delay = base_delay * (2 ** i) * (0.5 + 0.5 * jitter)
             await asyncio.sleep(delay)
     raise last_exception
@@ -976,7 +973,7 @@ class AIEngine:
             )
         
         try:
-            r = await with_retry(_call, retries=3, base_delay=1.0)
+            r = await with_retry(_call, retries=OPENAI_RETRIES, base_delay=1.0)
             
             if not getattr(r, "choices", None) or not r.choices:
                 log_json(

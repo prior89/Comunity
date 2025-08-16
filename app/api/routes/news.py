@@ -1,13 +1,16 @@
 """
 뉴스 관련 API 엔드포인트
 """
+import json
 from typing import List, Dict, Any
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request, Response
+from fastapi.responses import JSONResponse
 
 from ...models.schemas import PersonalizeRequest, PersonalizedArticle
 from ...api.dependencies import get_news_processor, require_write_permission, log_request_info
 from ...services.news_processor import NewsProcessor
 from ...core.logging import get_logger
+from ...utils.helpers import make_etag, apply_cache_headers
 
 logger = get_logger("api.news")
 
@@ -35,43 +38,62 @@ async def refresh_news(
     }
 
 
-@router.post("/personalize", response_model=PersonalizedArticle)
+@router.post("/personalize")
 async def personalize_article(
-    request: PersonalizeRequest,
+    personalize_request: PersonalizeRequest,
+    request: Request,
     processor: NewsProcessor = Depends(get_news_processor),
     request_info: Dict[str, str] = Depends(log_request_info)
 ):
-    """기사 개인화"""
+    """기사 개인화 (ETag 캐시 지원)"""
     
     logger.info("개인화 요청", 
-               article_id=request.article_id, 
-               user_id=request.user_id[:10],
+               article_id=personalize_request.article_id, 
+               user_id=personalize_request.user_id[:10],
                **request_info)
     
     try:
         personalized = await processor.generate_personalized(
-            request.article_id, 
-            request.user_id
+            personalize_request.article_id, 
+            personalize_request.user_id
         )
         
-        logger.info("개인화 완료", 
-                   article_id=request.article_id,
-                   user_id=request.user_id[:10],
-                   cached=personalized.get('cached', False))
+        # ETag 생성 및 조건부 응답
+        body = json.dumps(personalized, ensure_ascii=False, default=str).encode("utf-8")
+        etag = make_etag(body)
         
-        return PersonalizedArticle(**personalized)
+        # If-None-Match 헤더 확인
+        if_none_match = request.headers.get("If-None-Match")
+        if if_none_match and f'W/"{etag}"' in if_none_match:
+            logger.debug("개인화 ETag 매치 - 304 응답", 
+                        article_id=personalize_request.article_id,
+                        user_id=personalize_request.user_id[:10])
+            return Response(status_code=304)
+        
+        # 응답 생성 및 캐시 헤더 적용
+        response = JSONResponse(personalized)
+        response.headers["ETag"] = f'W/"{etag}"'
+        response.headers["Cache-Control"] = "public, max-age=300"
+        
+        logger.info("개인화 완료", 
+                   article_id=personalize_request.article_id,
+                   user_id=personalize_request.user_id[:10],
+                   cached=personalized.get('cached', False),
+                   etag=etag[:8])
+        
+        return response
         
     except ValueError as e:
         logger.warning("개인화 실패", 
                       error=str(e),
-                      article_id=request.article_id,
-                      user_id=request.user_id[:10])
+                      article_id=personalize_request.article_id,
+                      user_id=personalize_request.user_id[:10])
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error("개인화 처리 오류", 
                     error=str(e),
-                    article_id=request.article_id,
-                    user_id=request.user_id[:10])
+                    article_id=personalize_request.article_id,
+                    user_id=personalize_request.user_id[:10])
         raise HTTPException(status_code=500, detail="개인화 처리 중 오류가 발생했습니다")
 
 

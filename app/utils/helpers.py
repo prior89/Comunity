@@ -98,6 +98,21 @@ def datetime_to_http_date(dt: datetime) -> str:
     return formatdate(timestamp, usegmt=True)
 
 
+def make_etag(content: bytes) -> str:
+    """콘텐츠 기반 ETag 생성"""
+    return hashlib.blake2s(content, digest_size=8).hexdigest()
+
+
+def apply_cache_headers(response, *, etag: str = None, last_modified: datetime = None, max_age: int = 300):
+    """응답에 캐시 헤더 적용"""
+    if etag:
+        response.headers["ETag"] = f'W/"{etag}"'
+    if last_modified:
+        response.headers["Last-Modified"] = datetime_to_http_date(last_modified)
+    response.headers["Cache-Control"] = f"public, max-age={max_age}"
+    return response
+
+
 def make_safe_filename(text: str, max_length: int = 50) -> str:
     """안전한 파일명 생성"""
     # 특수문자 제거
