@@ -149,6 +149,28 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                        ip=client_ip,
                        duration=duration)
             
+            # Prometheus 메트릭 기록 (2025년 모니터링 표준)
+            try:
+                # HTTP 요청 카운터
+                import sys
+                main_module = sys.modules.get('__main__')
+                if main_module and hasattr(main_module, 'HTTP_REQUESTS'):
+                    main_module.HTTP_REQUESTS.labels(
+                        path=str(request.url.path),
+                        method=request.method,
+                        status=str(response.status_code)
+                    ).inc()
+                
+                # HTTP 레이턴시 히스토그램
+                if main_module and hasattr(main_module, 'HTTP_LATENCY'):
+                    main_module.HTTP_LATENCY.labels(
+                        path=str(request.url.path),
+                        method=request.method,
+                        status=str(response.status_code)
+                    ).observe(duration)
+            except Exception:
+                pass  # 메트릭 실패는 조용히 무시
+            
             return response
             
         except Exception as e:

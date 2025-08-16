@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     
     # 기본 설정
     app_name: str = "깔깔뉴스 API"
-    app_version: str = "3.0.7"
+    app_version: str = "3.0.8"
     environment: str = "development"
     debug: bool = False
     

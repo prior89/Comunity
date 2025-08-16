@@ -35,7 +35,7 @@ class Database:
         # 2025년 검증된 SQLite WAL 최적화 설정
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA synchronous=NORMAL;")  # WAL과 함께 사용시 안전
-        conn.execute("PRAGMA cache_size=-64000;")   # 64MB 캐시
+        conn.execute("PRAGMA cache_size=-65536;")   # 64MB 캐시 (64 * 1024 KB)
         conn.execute("PRAGMA temp_store=MEMORY;")   # 임시 데이터 메모리 저장
         conn.execute("PRAGMA mmap_size=268435456;") # 256MB 메모리 맵
         conn.execute("PRAGMA foreign_keys=ON;")

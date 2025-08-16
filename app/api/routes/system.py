@@ -16,7 +16,14 @@ logger = get_logger("api.system")
 
 # Prometheus 메트릭 (선택적 임포트)
 try:
-    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, Counter, Histogram
+    
+    # 메트릭 정의 (2025년 표준)
+    HTTP_REQUESTS = Counter("http_requests_total", "HTTP requests", ["path", "method", "status"])
+    HTTP_LATENCY = Histogram("http_request_latency_seconds", "Request latency", ["path", "method", "status"])
+    OPENAI_TOKENS = Counter("openai_tokens_total", "OpenAI tokens", ["type", "model"])
+    CACHE_HITS = Counter("cache_hits_total", "Cache hits", ["type"])
+    
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False

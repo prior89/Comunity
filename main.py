@@ -134,8 +134,8 @@ if settings.cors_origins_list == ["*"]:
         allow_origins=["*"],
         allow_credentials=False,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"],
-        expose_headers=["X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining"]
+        allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID", "If-None-Match", "If-Modified-Since"],
+        expose_headers=["X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining", "ETag", "Last-Modified", "Cache-Control"]
     )
 else:
     app.add_middleware(
@@ -143,8 +143,8 @@ else:
         allow_origins=settings.cors_origins_list,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"],
-        expose_headers=["X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining"],
+        allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID", "If-None-Match", "If-Modified-Since"],
+        expose_headers=["X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining", "ETag", "Last-Modified", "Cache-Control"],
         max_age=3600
     )
 
