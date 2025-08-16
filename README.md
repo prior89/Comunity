@@ -114,22 +114,49 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 
 ## 🔧 성능 튜닝 가이드
 
-### OpenAI API 최적화
+### OpenAI API 최적화 (2025년 Structured Outputs)
 ```bash
 # 2025년 검증된 설정값
-OPENAI_CONCURRENCY_LIMIT=25    # GPT-3.5: 25, GPT-4: 15 권장
-OPENAI_RETRIES=2               # 재시도 횟수
-OPENAI_TIMEOUT=60              # 타임아웃 (초)
-USE_STRUCTURED_OUTPUTS=true    # 구조화된 출력 사용
+OPENAI_MODEL=gpt-4o-2024-08-06        # Structured Outputs 지원 최신 모델
+OPENAI_CONCURRENCY_LIMIT=25           # GPT-4o: 25, GPT-4o-mini: 50 권장
+OPENAI_RETRIES=2                      # 재시도 횟수
+OPENAI_TIMEOUT=60                     # 타임아웃 (초)
+USE_STRUCTURED_OUTPUTS=true           # 2025년 권장: JSON mode 대신 사용
+
+# Structured Outputs 안전성 설정
+HANDLE_MODEL_REFUSALS=true            # 모델 거부 응답 처리
+STRICT_JSON_SCHEMA=true               # 엄격한 스키마 준수
+FALLBACK_TO_JSON_MODE=false           # Structured Outputs 우선 사용
 ```
 
-### 데이터베이스 최적화
-```bash
-# SQLite WAL 모드 설정 (자동 적용)
-# - 64MB 캐시 크기
-# - 256MB 메모리 맵
-# - 자동 최적화 쿼리
-# - 1000회마다 WAL 체크포인트
+### 안전성 처리 가이드
+```python
+# 모델 거부 응답 처리 예시
+if response.choices[0].message.refusal:
+    # 안전성 거부 시 처리 로직
+    logger.warning("OpenAI 모델 거부", refusal=response.choices[0].message.refusal)
+    return {"error": "content_filtered", "message": "요청이 안전 정책에 의해 거부되었습니다"}
+```
+
+### 데이터베이스 최적화 (2025년 고성능 설정)
+```sql
+-- SQLite WAL 모드 최적화 (자동 적용)
+PRAGMA journal_mode=WAL;
+PRAGMA synchronous=NORMAL;              -- WAL 모드에서 안전
+PRAGMA cache_size=-65536;               -- 64MB 캐시 (음수 = KB 단위)
+PRAGMA mmap_size=268435456;             -- 256MB 메모리 맵
+PRAGMA temp_store=MEMORY;               -- 임시 데이터 메모리 저장
+PRAGMA wal_autocheckpoint=256;          -- ~1MB마다 체크포인트 (4KB * 256)
+PRAGMA journal_size_limit=104857600;    -- 100MB WAL 크기 제한
+PRAGMA optimize;                        -- 자동 최적화 (연결 종료 시 권장)
+```
+
+### 백그라운드 체크포인트 (고성능 환경용)
+```python
+# 별도 스레드에서 체크포인트 실행 (차단 방지)
+async def background_checkpoint():
+    with database.get_connection() as conn:
+        conn.execute("PRAGMA wal_checkpoint(FULL);")
 ```
 
 ### 캐시 최적화
@@ -142,10 +169,12 @@ ACTIVITY_TTL_DAYS=90           # 활동 로그 보존 기간
 
 ## 🔒 보안 설정
 
-### API 보안
-- **API 키 검증**: 쓰기 작업 보호
-- **환경별 설정**: 개발/프로덕션 분리
-- **요청 추적**: X-Request-ID 헤더
+### API 보안 (2025년 강화 정책)
+- **API 키 검증**: 쓰기 작업 보호 + Bearer 토큰 지원
+- **환경별 설정**: 개발/프로덕션 분리 + 시크릿 관리
+- **요청 추적**: X-Request-ID 헤더 + 감사 로그
+- **입력 검증**: Pydantic 스키마 + SQL 인젝션 방지
+- **출력 필터링**: 민감 정보 마스킹 + PII 보호
 
 ### 네트워크 보안
 ```bash
@@ -196,30 +225,139 @@ curl http://localhost:8000/api/system/health
 }
 ```
 
-### 성능 메트릭
-- **OpenAI API**: 지연시간, 토큰 사용량, 에러율
-- **데이터베이스**: 쿼리 시간, 연결 수
-- **캐시**: 히트율, 메모리 사용량
-- **HTTP**: 요청 수, 응답 시간, 상태 코드
+### 성능 메트릭 (2025년 관찰성 스택)
+- **OpenAI API**: 지연시간, 토큰 사용량, 에러율, 모델 거부율
+- **데이터베이스**: 쿼리 시간, 연결 수, WAL 크기, 체크포인트 빈도
+- **캐시**: 히트율, 메모리 사용량, ETag 304 응답율
+- **HTTP**: 요청 수, 응답 시간, 상태 코드, 대역폭 절약량
+
+### Prometheus/Grafana 통합
+```python
+# 메트릭 수집을 위한 prometheus_client 추가
+from prometheus_client import Counter, Histogram, Gauge
+
+# 핵심 메트릭 정의
+request_count = Counter('http_requests_total', 'HTTP 요청 수', ['method', 'endpoint', 'status'])
+request_duration = Histogram('http_request_duration_seconds', 'HTTP 요청 시간')
+openai_tokens = Counter('openai_tokens_total', 'OpenAI 토큰 사용량', ['model', 'operation'])
+cache_hits = Counter('cache_hits_total', '캐시 히트 수', ['type'])
+```
+
+### 로그 집계 (ELK Stack)
+```yaml
+# Filebeat → Elasticsearch → Kibana
+version: '3.8'
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.0
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.15.0
+```
 
 ## 🚀 배포 가이드
 
-### Docker 배포
+### Docker 배포 (2025년 모범 사례)
 ```dockerfile
-FROM python:3.11-slim
-
+# 멀티 스테이지 빌드로 최적화
+FROM python:3.11-slim as builder
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --user -r requirements.txt
 
-COPY . .
+FROM python:3.11-slim as production
+WORKDIR /app
+
+# 보안: 비 root 사용자 생성
+RUN groupadd --gid 1000 appuser && \
+    useradd --uid 1000 --gid 1000 --shell /bin/bash --create-home appuser
+
+# 빌드 스테이지에서 패키지 복사
+COPY --from=builder /root/.local /home/appuser/.local
+COPY --chown=appuser:appuser . .
+
+# PATH 설정
+ENV PATH=/home/appuser/.local/bin:$PATH
+
+# 포트 노출
 EXPOSE 8000
 
-# 헬스체크 추가
+# 헬스체크 (개선된 엔드포인트 사용)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8000/api/system/health || exit 1
+  CMD curl -f http://localhost:8000/api/system/healthz || exit 1
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 비 root 사용자로 실행
+USER appuser
+
+# exec form 사용 (2025년 권장)
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+```
+
+### Kubernetes 배포
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kkalkalnews-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: kkalkalnews-api
+  template:
+    metadata:
+      labels:
+        app: kkalkalnews-api
+    spec:
+      containers:
+      - name: api
+        image: kkalkalnews:v3.0.5
+        ports:
+        - containerPort: 8000
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-secrets
+              key: openai-api-key
+        - name: INTERNAL_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-secrets  
+              key: internal-api-key
+        livenessProbe:
+          httpGet:
+            path: /api/system/healthz
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/system/readyz
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kkalkalnews-service
+spec:
+  selector:
+    app: kkalkalnews-api
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8000
+  type: LoadBalancer
 ```
 
 ### 환경별 설정
@@ -240,38 +378,85 @@ INTERNAL_API_KEY=required  # 필수
 
 ## 🔄 업그레이드 가이드
 
-### v2.8.2에서 v3.0.0으로
-1. **백업**: 기존 데이터베이스 백업
-2. **환경변수**: 새로운 설정 항목 추가
-3. **의존성**: `pip install -r requirements.txt`
-4. **검증**: 헬스체크 엔드포인트로 확인
+### v2.8.2에서 v3.0.5로 업그레이드
+```bash
+# 1. 데이터베이스 백업
+cp kkalkalnews.db kkalkalnews_backup_$(date +%Y%m%d).db
 
-### 주요 변경사항
-- **파일 구조**: 단일 파일 → 모듈화된 구조
-- **설정 관리**: 환경변수 중앙화
-- **API 엔드포인트**: 새로운 시스템 API 추가
-- **캐시 시스템**: Redis 지원 추가
+# 2. 코드 업데이트  
+git pull origin master
+
+# 3. 의존성 업데이트 (호환 릴리스 전략)
+pip install -r requirements.txt
+
+# 4. 환경변수 업데이트
+# .env에 새로운 설정 추가:
+OPENAI_MODEL=gpt-4o-2024-08-06
+USE_STRUCTURED_OUTPUTS=true
+HANDLE_MODEL_REFUSALS=true
+
+# 5. 데이터베이스 마이그레이션 (자동)
+# 앱 시작 시 자동으로 새 테이블/인덱스 생성됨
+
+# 6. 검증
+curl localhost:8000/api/system/healthz
+curl localhost:8000/api/system/info
+```
+
+### 주요 변경사항 (v2.8.2 → v3.0.5)
+- **아키텍처**: 단일 파일 → 모듈화된 구조 + 의존성 주입
+- **성능**: SQLite WAL 최적화 + ETag 조건부 캐싱 + UPSERT created_at 보존
+- **AI**: OpenAI Structured Outputs + 안전성 거부 처리 + 재시도 일관화  
+- **배포**: Docker 멀티스테이지 + Kubernetes 매니페스트 + 프로덕션 보안
+- **모니터링**: Prometheus/Grafana + ELK Stack + 구조화된 로깅
 
 ## 🤝 기여하기
 
-### 개발 환경 설정
+### 개발 환경 설정 (2025년 도구 스택)
 ```bash
 # 개발 의존성 설치
-pip install -r requirements.txt pytest pytest-asyncio httpx
+pip install -r requirements.txt
+pip install pytest pytest-asyncio httpx ruff black mypy pre-commit
 
-# 테스트 실행
-pytest
+# Pre-commit 훅 설정 (자동 코드 품질)
+pre-commit install
 
-# 코드 품질 검사
+# 테스트 실행 (커버리지 포함)
+pytest --cov=app --cov-report=html
+
+# 코드 품질 검사 (Ruff 2025 표준)
+ruff check . --fix
+ruff format .
 black . --check
-ruff check .
+mypy app/
+
+# 보안 스캔
+bandit -r app/
+safety check
 ```
 
-### 코딩 컨벤션
-- **Python**: PEP 8 준수, Black 포매터 사용
-- **API**: RESTful 설계 원칙
-- **로깅**: 구조화된 JSON 로그
-- **에러 핸들링**: 명확한 에러 메시지
+### 개발 도구 통합 (.pre-commit-config.yaml)
+```yaml
+repos:
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.1.6
+  hooks:
+  - id: ruff
+    args: [--fix, --exit-non-zero-on-fix]
+  - id: ruff-format
+- repo: https://github.com/PyCQA/bandit
+  rev: 1.7.5
+  hooks:
+  - id: bandit
+    args: ['-r', 'app/']
+```
+
+### 코딩 컨벤션 (2025년 표준)
+- **Python**: PEP 8 준수, Ruff 포매터 + 린터 사용
+- **API**: OpenAPI 3.1 스펙 + RESTful 설계 원칙
+- **로깅**: 구조화된 JSON 로그 + Request ID 추적
+- **타입 힌트**: mypy strict 모드 + 100% 타입 커버리지
+- **에러 핸들링**: HTTP 상태 코드 + 상세 에러 메시지
 
 ## 📄 라이선스
 
