@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     articles_per_batch: int = 5
     collect_timeout: int = 30
     summary_max: int = 2000
-    min_content_len: int = 40
+    min_content_len: int = 80  # 품질 향상을 위해 80자로 증가
     rate_limit_per_minute: int = 100
     
     # 캐시 설정

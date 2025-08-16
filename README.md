@@ -280,3 +280,54 @@ MIT License - 자세한 내용은 LICENSE 파일 참조
 ---
 
 **🎯 핵심 메시지**: 검증된 2025년 모범 사례를 적용한 확장 가능하고 안정적인 뉴스 플랫폼
+## ✅ **v3.0.1 수정 완료 사항**
+
+### 🔧 **즉시 수정 완료**
+- ✅ **apply_cache_headers 함수 정리**: 죽은 코드 제거 완료
+- ✅ **Database.release_lock() 중복 제거**: 중복 실행 블록 정리 완료  
+- ✅ **WAL 체크포인트 최적화**: 1000→256으로 수정 (~1MB 정확 설정)
+
+### 🛡️ **환경 호환성 개선**
+- ✅ **tzdata 의존성 추가**: Windows/Alpine 환경 타임존 지원
+- ✅ **최소 콘텐츠 길이 조정**: 40→80자로 품질 향상
+
+### 📊 **성능 일관성 확보**  
+- ✅ **OpenAI 재시도 설정**: 전체 코드베이스에서 settings.openai_retries 일관 사용 
+dzx.fr
+
+동작/논리 이슈(운영 중 당장 영향 가능)
+
+실행 엔드포인트 미정의
+레이트리미터에서 /api/refresh, /api/personalize 경로 가중치를 쓰지만, 올려준 코드엔 실제 FastAPI 라우트가 없습니다. 앱이 뜨더라도 외부에서 기능을 호출할 수 없어요.
+점검: 실제 레포에 라우트 모듈이 따로 있다면 import 되어 있는지 확인. 없다면 최소 헬스체크/개인화 생성/활동 로그 저장 정도의 엔드포인트를 추가하세요.
+
+분산 락 UPSERT 로직 확인 포인트
+try_acquire_lock()의 ON CONFLICT DO UPDATE ... WHERE locks.acquired_at < ?는 WHERE가 거짓이면 업데이트가 생략되고 결과적으로 “업서트 무행동(=DO NOTHING)”이 됩니다. 의도대로 “만료됐을 때만 홀더 교체”가 동작하는 패턴이라 로직은 합리적입니다. 동작 의미를 명확히 하기 위해 주석을 보강하는 걸 권장합니다.
+
+Windows 환경 타임존 의존성
+zoneinfo.ZoneInfo("Asia/Seoul")는 Windows/일부 컨테이너에서 IANA tz 데이터가 없으면 실패할 수 있습니다. 그런 환경에서 안정적으로 쓰려면 tzdata 패키지를 의존성에 추가해 주세요.
+
+피드 수집 소스 안정성
+지금 소스가 https://www.yonhapnewstv.co.kr/browse/feed/ 하나로 고정인데, 실제 운영에서 종종 파싱 실패(bozo)·빈 피드가 발생할 수 있습니다. 최소 3~5개 안정 소스를 두고, 소스별 타임아웃/재시도/백오프를 분리하는 게 좋습니다. (이건 품질 안정화 이슈이지 보안 이슈 아님)
+
+품질/성능 개선(보안 제외)
+
+OpenAI 호출 타임아웃/재시도 일관화
+extract_facts()는 retries=3, rewrite_for_user()는 OPENAI_RETRIES(기본 2)라 서로 다릅니다. 운영 성격에 맞춰 상수화/일관화하면 관측과 튜닝이 쉬워집니다.
+
+캐시 키/프로필 해시 안정성
+profile_hash()에 updated_at이 포함되어 있어 작은 프로필 변경에도 캐시 미스가 크게 늘 수 있습니다. 읽기 모드나 관심사 위주로만 해시를 구성하고, 사소한 변경은 무시하는 옵션(예: 관심사 상위 N개만, 정렬/정규화)을 이미 쓰고 있으니 주석으로 의도를 명확히 해두면 좋습니다.
+
+피드 항목 필터
+MIN_CONTENT_LEN=40은 요약/티저 같은 짧은 항목도 통과시킬 수 있습니다. 품질을 위해 80~120으로 올리고, 제목만 있는 항목은 스킵 권장.
+
+로그 레벨/키 일관화
+log_json(level="ACCESS" | "INFO" | "ERROR" | "WARNING")가 잘 쓰이고 있는데, OpenAI 사용 로그 키(message="openai_usage")와 같이 분석에 중요한 로그는 별도 op/stage 키로 구분하면 지표 생성이 쉬워집니다.
+
+테스트/배포 팁
+
+의존성: tzdata(Windows/Alpine 대비), feedparser, aiohttp, python-dotenv, pydantic(>=1.10,<3) 범위, openai 최신 버전 호환성 명시.
+
+건강검진: /healthz에서 DB 접속/마이그레이션 상태/락 테이블 읽기 간단 체크.
+
+부하 테스트: SimpleRateLimiter 파라미터(용량/리필)와 ARTICLES_PER_BATCH를 k6 같은 도구로 사전 검증.

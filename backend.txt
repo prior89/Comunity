@@ -288,9 +288,6 @@ def apply_cache_headers(resp: Response, *, etag: Optional[str] = None,
         resp.headers["Last-Modified"] = datetime_to_http_date(last_modified)
     resp.headers["Cache-Control"] = f"public, max-age={max_age}"
     return resp
-    """datetime을 HTTP Date 형식으로 변환"""
-    timestamp = mktime(dt.timetuple())
-    return formatdate(timestamp, usegmt=True)
 
 # =====================================
 # 레이트 리미터 미들웨어 (개선된 버전)
@@ -611,10 +608,6 @@ class Database:
             return cur.rowcount > 0
 
     def release_lock(self, lock_name: str, holder: str) -> None:
-        """분산 락 해제"""
-        with self.get_connection() as conn:
-            cur = conn.cursor()
-            cur.execute('DELETE FROM locks WHERE name = ? AND holder = ?', (lock_name, holder))
         """분산 락 해제"""
         with self.get_connection() as conn:
             cur = conn.cursor()

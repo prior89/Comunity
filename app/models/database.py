@@ -40,7 +40,7 @@ class Database:
         conn.execute("PRAGMA mmap_size=268435456;") # 256MB 메모리 맵
         conn.execute("PRAGMA foreign_keys=ON;")
         conn.execute("PRAGMA busy_timeout=5000;")
-        conn.execute("PRAGMA wal_autocheckpoint=1000;")
+        conn.execute("PRAGMA wal_autocheckpoint=256;")  # ~1MB마다 체크포인트 (4KB * 256)
         conn.execute("PRAGMA journal_size_limit=104857600;")  # 100MB 상한
         conn.execute("PRAGMA optimize;")  # 자동 최적화
         

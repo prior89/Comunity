@@ -17,6 +17,9 @@ redis==5.0.1
 # 환경 변수 관리
 python-dotenv==1.0.0
 
+# 타임존 데이터 (Windows/Alpine 대응)
+tzdata>=2023.3
+
 # 개발 도구 (선택사항)
 pytest==7.4.3
 pytest-asyncio==0.21.1
