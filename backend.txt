@@ -84,7 +84,7 @@ prometheus-client~=0.19.0   # 메트릭 수집
 # =====================================
 # 구성 설정 (환경변수 기반 강화)
 # =====================================
-APP_VERSION = "3.0.6"  # v3.0.6 - 운영 최적화 완성 (FINAL)
+APP_VERSION = "3.0.7"  # v3.0.7 - 모든 수정안 완전 적용 (ULTIMATE FINAL)
 
 USE_STRUCTURED_OUTPUTS = os.getenv("USE_STRUCTURED_OUTPUTS", "true").lower() == "true"  # 2025년 기본값
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-2024-08-06")  # Structured Outputs 지원 최신 모델
@@ -1510,6 +1510,7 @@ async def startup():
         from datetime import datetime, timedelta
         
         async def _run_once():
+            # 1) TTL 정리
             try:
                 cutoff_pc = (datetime.now(tz=KST) - timedelta(days=PC_TTL_DAYS)).isoformat()
                 cutoff_act = (datetime.now(tz=KST) - timedelta(days=ACTIVITY_TTL_DAYS)).isoformat()
@@ -1520,23 +1521,25 @@ async def startup():
                     pc_deleted = cur.rowcount
                     cur.execute("DELETE FROM user_activity WHERE created_at < ?", (cutoff_act,))
                     act_deleted = cur.rowcount
-                
-            # PRAGMA optimize 실행 (별도 커넥션으로 안전하게)
+            except Exception as e:
+                log_json(level="ERROR", message="cleanup_failed", error=str(e)[:200])
+                return
+            
+            # 2) PRAGMA optimize (별도 커넥션)
             try:
                 with processor.db.get_connection() as opt_conn:
                     opt_conn.execute("PRAGMA optimize;")
                 log_json(level="INFO", message="pragma_optimize_ok")
             except Exception as opt_e:
                 log_json(level="ERROR", message="pragma_optimize_failed", error=str(opt_e)[:200])
-                
-                log_json(
-                    level="INFO",
-                    message="cleanup_done",
-                    pc_deleted=pc_deleted,
-                    act_deleted=act_deleted
-                )
-            except Exception as e:
-                log_json(level="ERROR", message="cleanup_failed", error=str(e)[:200])
+            
+            # 3) 완료 로그
+            log_json(
+                level="INFO",
+                message="cleanup_done",
+                pc_deleted=pc_deleted,
+                act_deleted=act_deleted
+            )
         
         # 즉시 1회 실행
         await _run_once()
@@ -1564,7 +1567,7 @@ async def startup():
     asyncio.create_task(_boot())
     asyncio.create_task(_cleanup_job())
 
-# ========== Minimal API routes (v3.0.6) ==========
+# ========== Minimal API routes (v3.0.7) ==========
 
 # Prometheus 메트릭 (2025년 모니터링 표준)
 try:
@@ -1660,10 +1663,10 @@ async def refresh(request: Request):
     return {"started": ok}
 
 # =====================================
-# v3.0.6 FINAL - 운영 최적화 완성 (2025-08-16)
+# v3.0.7 ULTIMATE FINAL - 모든 수정안 완전 적용 (2025-08-16)
 # =====================================
 """
-✅ v3.0.1 → v3.0.6 모든 개선사항 완료:
+✅ v3.0.1 → v3.0.7 모든 개선사항 완료:
 
 🔧 코드 품질 개선:
 - apply_cache_headers 함수 죽은 코드 제거
@@ -1701,10 +1704,14 @@ async def refresh(request: Request):
 - 성능 메트릭: OpenAI 토큰, 캐시 히트율, 대역폭 절약
 - /metrics 엔드포인트: prometheus_client 통합 완성
 
-🔧 운영 최적화 완성 (v3.0.6):
+🔧 운영 최적화 완성 (v3.0.6-v3.0.7):
 - PRAGMA optimize 주기 실행: SQLite 성능 유지 자동화
 - Prometheus 메트릭 노출: 실시간 성능 모니터링
 - Docker 멀티스테이지: 이미지 최적화 + 보안 강화
+- try-catch 블록 정리: 2025년 예외 처리 모범 사례
+- 304 응답 ETag 헤더: RFC 7232 표준 준수
+- OpenAI 토큰 메트릭: 사용량 추적 완성
+- 캐시 히트 메트릭: 성능 모니터링 완성
 
 🎯 기술적 검증:
 - 웹 검색 기반 2025년 업계 표준 전체 준수

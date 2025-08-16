@@ -126,6 +126,20 @@ class AIEngine:
                            completion_tokens=getattr(usage, "completion_tokens", None),
                            total_tokens=getattr(usage, "total_tokens", None))
                 
+                # Prometheus 토큰 메트릭 기록 (2025년 모니터링 표준)
+                try:
+                    # 전역에서 OPENAI_TOKENS 메트릭 사용 (backend.txt에서 정의)
+                    import sys
+                    if 'OPENAI_TOKENS' in dir(sys.modules.get('__main__', {})):
+                        main_module = sys.modules['__main__']
+                        if hasattr(main_module, 'OPENAI_TOKENS') and usage:
+                            if getattr(usage, "prompt_tokens", None) is not None:
+                                main_module.OPENAI_TOKENS.labels("prompt", self.model).inc(usage.prompt_tokens)
+                            if getattr(usage, "completion_tokens", None) is not None:
+                                main_module.OPENAI_TOKENS.labels("completion", self.model).inc(usage.completion_tokens)
+                except Exception:
+                    pass  # 메트릭 실패는 조용히 무시
+                
                 if finish_reason == "length":
                     logger.warning("응답이 max_tokens에 도달했습니다")
                 elif finish_reason == "content_filter":

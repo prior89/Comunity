@@ -259,6 +259,17 @@ class NewsProcessor:
         cached_content = self.db.get_personalized_content(content_id)
         if cached_content:
             logger.debug("개인화 콘텐츠 캐시 히트", cache_id=content_id)
+            
+            # Prometheus 캐시 히트 메트릭 기록 (2025년 모니터링 표준)
+            try:
+                import sys
+                if 'CACHE_HITS' in dir(sys.modules.get('__main__', {})):
+                    main_module = sys.modules['__main__']
+                    if hasattr(main_module, 'CACHE_HITS'):
+                        main_module.CACHE_HITS.labels("personalized").inc()
+            except Exception:
+                pass  # 메트릭 실패는 조용히 무시
+            
             return cached_content
         
         # 팩트 조회

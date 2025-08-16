@@ -68,7 +68,8 @@ async def personalize_article(
             logger.debug("개인화 ETag 매치 - 304 응답", 
                         article_id=personalize_request.article_id,
                         user_id=personalize_request.user_id[:10])
-            return Response(status_code=304)
+            # RFC 7232: 304 응답에 ETag 헤더 포함 필수
+            return Response(status_code=304, headers={"ETag": f'W/"{etag}"'})
         
         # 응답 생성 및 캐시 헤더 적용
         response = JSONResponse(personalized)
