@@ -16,6 +16,17 @@ logger = get_logger("api.system")
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
+# v3.0.1 추가: 간단한 헬스체크 엔드포인트
+@router.get("/healthz")
+async def healthz():
+    """Kubernetes 스타일 헬스체크 (라이브니스)"""
+    return {"ok": True, "version": settings.app_version, "timestamp": datetime.now().isoformat()}
+
+@router.get("/readyz") 
+async def readyz():
+    """Kubernetes 스타일 준비 상태 체크 (레디니스)"""
+    return {"ready": True, "timestamp": datetime.now().isoformat()}
+
 
 @router.get("/health", response_model=HealthCheck)
 async def health_check(
