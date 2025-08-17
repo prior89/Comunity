@@ -10,7 +10,7 @@ from .config import settings
 
 
 def require_api_key(request: Request) -> None:
-    """API 키 검증 (보안 강화)"""
+    """API 키 검증 (X-API-Key + Bearer 토큰 지원)"""
     if not settings.internal_api_key:
         if settings.environment == "production":
             raise HTTPException(
@@ -19,9 +19,19 @@ def require_api_key(request: Request) -> None:
             )
         return  # 개발 환경에서는 허용
     
+    # X-API-Key 헤더 확인
     api_key = request.headers.get("X-API-Key")
-    if api_key != settings.internal_api_key:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    if api_key == settings.internal_api_key:
+        return
+    
+    # Authorization Bearer 토큰 확인
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header.split(" ", 1)[1]
+        if token == settings.internal_api_key:
+            return
+    
+    raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 def _parse_trusted_proxies(items: List[str]):

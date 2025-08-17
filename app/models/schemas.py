@@ -73,11 +73,11 @@ class UserProfileCreate(StrictModel):
     interests_hobby: List[str] = Field(default_factory=list, max_length=MAX_INTERESTS)
     interests_tech: List[str] = Field(default_factory=list, max_length=MAX_INTERESTS)
     
-    work_style: Literal["commute", "remote", "flexible", "shift", "freelance"]
+    work_style: Literal["commute", "remote", "flexible", "shift", "freelance", "hybrid"]
     family_status: Literal["single", "dating", "married", "divorced"]
     living_situation: Literal["alone", "family", "parents", "share"]
     
-    reading_mode: Literal["quick", "standard", "deep"] = "standard"
+    reading_mode: Literal["quick", "standard", "deep", "detailed"] = "standard"
 
 
 class UserProfileCreateRequest(StrictModel):
@@ -93,11 +93,11 @@ class UserProfileCreateRequest(StrictModel):
     interests_hobby: List[str] = Field(default_factory=list, max_length=MAX_INTERESTS)
     interests_tech: List[str] = Field(default_factory=list, max_length=MAX_INTERESTS)
     
-    work_style: Literal["commute", "remote", "flexible", "shift", "freelance"]
+    work_style: Literal["commute", "remote", "flexible", "shift", "freelance", "hybrid"]
     family_status: Literal["single", "dating", "married", "divorced"]
     living_situation: Literal["alone", "family", "parents", "share"]
     
-    reading_mode: Literal["quick", "standard", "deep"] = "standard"
+    reading_mode: Literal["quick", "standard", "deep", "detailed"] = "standard"
 
 
 class PersonalizeRequest(StrictModel):
@@ -110,7 +110,7 @@ class ActivityLog(StrictModel):
     """활동 로그"""
     user_id: str = Field(max_length=64)
     article_id: str = Field(max_length=50)
-    action: Literal["view", "click", "finish", "share", "like", "bookmark"]
+    action: Literal["view", "click", "finish", "share", "like", "bookmark", "read"]
     duration: Optional[int] = Field(None, ge=0, le=3600)
 
 
