@@ -1,7 +1,7 @@
 """
 FastAPI 의존성 관리
 """
-from typing import Optional
+from typing import Optional, Dict
 from fastapi import Depends, HTTPException, Request
 
 from ..core.security import require_api_key, get_client_ip
