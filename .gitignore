@@ -1,18 +1,26 @@
 # 환경 변수 및 보안
 .env
-*.env  
+*.env
 KEY.txt
 *.key
 
-# 데이터베이스
+# 데이터베이스  
 *.db
 *.sqlite
+
+# 개인정보 문서들
+사업계획서*
+신용보증기금*
+교육사업.pdf
+보정안.pdf
 
 # Python
 __pycache__/
 *.py[cod]
+*.pyc
 *.so
 *.log
+*.tmp
 
 # 개발 도구
 .vscode/
