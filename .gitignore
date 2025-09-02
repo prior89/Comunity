@@ -1,0 +1,21 @@
+# 환경 변수 및 보안
+.env
+*.env
+KEY.txt
+*.db
+
+# 개인정보 문서들  
+사업계획서*
+신용보증기금*
+교육사업.pdf
+보정안.pdf
+
+# 임시 파일들
+*.tmp
+*.log
+__pycache__/
+*.pyc
+
+# IDE 설정
+.vscode/
+.idea/
