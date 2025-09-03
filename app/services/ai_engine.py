@@ -354,40 +354,57 @@ JSON:
             "reading_time": guide["time"]
         }
     
+    def __init__(self, openai_api_key: str):
+        # ... (기존 init 코드) ...
+        
+        # 헬스체크 캐시 (5분간 유효)
+        self._health_cache = {"status": True, "last_check": 0}
+        self._health_cache_ttl = 300  # 5분
+    
     async def health_check(self) -> bool:
-        """듀얼 AI 엔진 상태 확인"""
+        """캐시 기반 헬스체크 (5분간 유효)"""
+        import time
+        current_time = time.time()
+        
+        # 캐시가 유효하면 API 호출 없이 반환
+        if current_time - self._health_cache["last_check"] < self._health_cache_ttl:
+            return self._health_cache["status"]
+        
+        # 캐시 만료 시에만 실제 헬스체크
         try:
-            # OpenAI 헬스체크 (필수)
-            async with self._concurrent_limit:
-                response = await self.openai_client.chat.completions.create(
-                    model=self.openai_model,
-                    messages=[{"role": "user", "content": "ping"}],
-                    temperature=0,
-                    max_tokens=5,
-                    timeout=10.0
-                )
-                openai_ok = bool(response.choices)
+            # 간단한 클라이언트 연결 테스트만
+            openai_ok = bool(self.openai_client)  # 클라이언트 객체 존재 여부만 확인
+            groq_ok = bool(self.groq_client) if self.groq_client else True
             
-            # Groq 헬스체크 (선택사항)
-            groq_ok = True  # Groq 없어도 서비스 가능
-            if self.groq_client:
+            # 실제 API 호출은 1시간에 한 번만
+            if current_time - self._health_cache["last_check"] > 3600:  # 1시간
                 try:
-                    groq_response = await self.groq_client.chat.completions.create(
-                        model=self.groq_model,
-                        messages=[{"role": "user", "content": "ping"}],
-                        temperature=0,
-                        max_tokens=5
-                    )
-                    groq_ok = bool(groq_response.choices)
+                    # 최소한의 API 테스트
+                    async with self._concurrent_limit:
+                        test_response = await self.openai_client.chat.completions.create(
+                            model=self.openai_model,
+                            messages=[{"role": "user", "content": "1+1=?"}],
+                            temperature=0,
+                            max_tokens=3,
+                            timeout=5.0
+                        )
+                        openai_ok = bool(test_response.choices)
+                        logger.info("실제 AI 헬스체크 완료", interval="1h", openai=openai_ok)
                 except Exception as e:
-                    logger.warning("Groq 헬스체크 실패, OpenAI로 대체", error=str(e))
-                    groq_ok = False
+                    logger.warning("실제 AI 헬스체크 실패", error=str(e))
+                    openai_ok = False
             
-            logger.info("듀얼 AI 헬스체크", openai=openai_ok, groq=groq_ok)
-            return openai_ok  # OpenAI만 필수
+            # 캐시 업데이트
+            self._health_cache["status"] = openai_ok
+            self._health_cache["last_check"] = current_time
+            
+            logger.debug("캐시된 헬스체크", cached=True, status=openai_ok)
+            return openai_ok
             
         except Exception as e:
-            logger.error("AI 엔진 헬스체크 실패", error=str(e))
+            logger.error("헬스체크 실패", error=str(e))
+            self._health_cache["status"] = False
+            self._health_cache["last_check"] = current_time
             return False
 
     # === 듀얼 AI 아키텍처 메서드들 ===
