@@ -43,22 +43,23 @@ async def lifespan(app: FastAPI):
     if settings.environment == "production" and not settings.internal_api_key:
         raise RuntimeError("프로덕션 환경에서는 INTERNAL_API_KEY가 필요합니다")
     
-    # 데이터베이스 초기화
-    if settings.use_mongodb:
-        # MongoDB 우선 사용
-        from app.models.mongodb import MongoDatabase
-        mongodb = MongoDatabase(settings.mongodb_uri)
-        mongo_connected = await mongodb.connect()
-        
-        if mongo_connected:
-            set_mongo_database(mongodb)
-            logger.info("MongoDB Atlas 연결 완료", cluster="verachain")
+    # 데이터베이스 초기화 (안전한 SQLite 우선)
+    try:
+        if settings.use_mongodb and settings.mongodb_uri:
+            from app.models.mongodb import MongoDatabase
+            mongodb = MongoDatabase(settings.mongodb_uri)
+            mongo_connected = await mongodb.connect()
+            
+            if mongo_connected:
+                set_mongo_database(mongodb)
+                logger.info("MongoDB Atlas 연결 완료", cluster="verachain")
+            else:
+                raise Exception("MongoDB 연결 실패")
         else:
-            # MongoDB 실패시 SQLite fallback
-            logger.warning("MongoDB 연결 실패, SQLite로 fallback")
-            database = Database()
-            set_database(database)
-    else:
+            raise Exception("MongoDB 설정 없음")
+            
+    except Exception as e:
+        logger.warning(f"MongoDB 연결 실패, SQLite 사용: {e}")
         database = Database()
         set_database(database)
     
@@ -320,6 +321,14 @@ def landing():
 </body>
 </html>
     """)
+
+
+# --- 정적 파일 마운트 (안전 버전) ---
+from fastapi.staticfiles import StaticFiles
+import os
+
+if os.path.isdir("public"):
+    app.mount("/", StaticFiles(directory="public", html=True), name="static")
 
 
 # 개발 서버 실행
