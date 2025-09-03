@@ -148,15 +148,16 @@ class NewsProcessor:
         """뉴스 수집 및 처리 (분산 락 지원)"""
         holder = f"proc_{uuid.uuid4().hex[:8]}"
         
-        # 분산 락 획득 시도
-        if not await self.distributed_lock.acquire("news_collector", holder, settings.collect_lock_ttl):
-            # 로컬 락 체크 (단일 프로세스 환경)
-            if self._local_lock.locked():
-                logger.info("수집 스킵: 로컬 프로세스에서 실행 중")
-                return False
-            
-            logger.info("수집 스킵: 다른 노드에서 실행 중")
+        # 데모용 락 우회: 빠른 수집을 위해 락 체크 간소화
+        if self._local_lock.locked():
+            logger.info("수집 스킵: 현재 진행 중")
             return False
+            
+        # 분산 락 시도하되, 실패해도 강제 진행 (데모용)
+        lock_acquired = await self.distributed_lock.acquire("news_collector", holder, settings.collect_lock_ttl)
+        if not lock_acquired:
+            logger.warning("분산 락 실패, 강제 진행", demo_mode=True)
+            # 데모에서는 강제로 진행
         
         self._current_holder = holder
         logger.info("뉴스 처리 배치 시작", holder=holder)
@@ -165,10 +166,10 @@ class NewsProcessor:
             async with self._local_lock:
                 return await self._process_batch_internal(holder)
         finally:
-            # 분산 락 해제
-            if self._current_holder:
+            # 분산 락 해제 (획득했을 경우에만)
+            if lock_acquired and self._current_holder:
                 await self.distributed_lock.release("news_collector", self._current_holder)
-                self._current_holder = None
+            self._current_holder = None
     
     async def _process_batch_internal(self, holder: str) -> bool:
         """내부 배치 처리 로직"""
