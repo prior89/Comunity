@@ -359,38 +359,24 @@ JSON:
         }
     
     async def health_check(self) -> bool:
-        """캐시 기반 헬스체크 (5분간 유효)"""
-        import time
-        current_time = time.time()
-        
-        # 캐시가 유효하면 API 호출 없이 반환
-        if current_time - self._health_cache["last_check"] < self._health_cache_ttl:
-            logger.debug("헬스체크 캐시 사용", cached_status=self._health_cache["status"])
-            return self._health_cache["status"]
-        
-        # 캐시 만료 시에만 기본 상태 확인
+        """간단한 헬스체크 (API 호출 없음)"""
         try:
-            # API 호출 없이 클라이언트 객체만 확인
+            # API 호출 없이 기본 상태만 확인
             openai_ok = bool(self.openai_client and self.openai_model)
-            groq_ok = bool(self.groq_client and self.groq_model) if self.groq_client else True
+            groq_available = bool(self.groq_client) if hasattr(self, 'groq_client') else False
             
-            status = openai_ok and groq_ok
+            # OpenAI만 필수, Groq는 선택사항
+            status = openai_ok
             
-            # 캐시 업데이트
-            self._health_cache["status"] = status
-            self._health_cache["last_check"] = current_time
-            
-            logger.info("헬스체크 완료", 
-                       openai=openai_ok, 
-                       groq=groq_ok, 
-                       cached=True,
-                       next_real_check_in=f"{self._health_cache_ttl}s")
+            logger.debug("헬스체크 완료", 
+                        openai=openai_ok, 
+                        groq=groq_available,
+                        status=status,
+                        no_api_calls=True)
             return status
             
         except Exception as e:
             logger.error("헬스체크 실패", error=str(e))
-            self._health_cache["status"] = False
-            self._health_cache["last_check"] = current_time
             return False
 
     # === 듀얼 AI 아키텍처 메서드들 ===
