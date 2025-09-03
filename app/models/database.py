@@ -309,13 +309,7 @@ class Database:
             row = cursor.fetchone()
             
             if row:
-                return {
-                    "title": row['title'],
-                    "content": row['content'],
-                    "key_points": json.loads(row['key_points']),
-                    "reading_time": row['reading_time'],
-                    "cached": True
-                }
+                return None  # 캐시 완전 비활성화
             return None
     
     def log_activity(self, user_id: str, article_id: str, action: str, duration: Optional[int] = None) -> None:

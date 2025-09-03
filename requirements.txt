@@ -12,6 +12,11 @@ feedparser~=6.0.10
 
 # 환경 변수 관리
 python-dotenv~=1.0.0
+pydantic-settings~=2.1.0
+
+# MongoDB 지원
+motor~=3.3.2
+pymongo~=4.6.0
 
 # 타임존 데이터 (Windows/Alpine 대응)
 tzdata>=2023.3

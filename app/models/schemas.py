@@ -165,7 +165,7 @@ REWRITE_SCHEMA = {
     "additionalProperties": False,
     "properties": {
         "title": {"type": "string", "maxLength": 200},
-        "content": {"type": "string", "maxLength": 2000},
+        "content": {"type": "string", "minLength": 2000, "maxLength": 8000},
         "key_points": {
             "type": "array",
             "items": {"type": "string", "maxLength": 100},
@@ -173,9 +173,9 @@ REWRITE_SCHEMA = {
             "maxItems": 3
         },
         "reading_time": {
-            "type": "string",
-            "enum": ["30초", "1-2분", "3-5분"]
-        }
+            "type": "string"
+        },
+        "disclaimer": {"type": "string", "maxLength": 300}
     },
-    "required": ["title", "content", "key_points", "reading_time"]
+    "required": ["title", "content", "key_points", "reading_time", "disclaimer"]
 }

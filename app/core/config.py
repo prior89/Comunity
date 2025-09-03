@@ -22,12 +22,21 @@ class Settings(BaseSettings):
     openai_retries: int = 2
     openai_concurrency_limit: int = 25
     
+    # Groq API 설정
+    groq_api_key: Optional[str] = None
+    groq_model: str = "llama-3.3-70b-versatile"
+    
+    # AI 제공자 선택
+    ai_provider: str = "openai"  # openai 또는 groq
+    
     # 보안 설정
     internal_api_key: Optional[str] = None
     trusted_proxies: List[str] = []
     
     # 데이터베이스 설정
     database_url: str = "sqlite:///kkalkalnews.db"
+    mongodb_uri: Optional[str] = None  # MongoDB 연결 문자열
+    use_mongodb: bool = False  # MongoDB 사용 여부
     redis_url: str = "redis://localhost:6379"
     
     # CORS 설정
@@ -36,7 +45,7 @@ class Settings(BaseSettings):
     # 성능 설정
     articles_per_batch: int = 5
     collect_timeout: int = 30
-    summary_max: int = 2000
+    summary_max: int = 10000
     min_content_len: int = 80  # 품질 향상을 위해 80자로 증가
     rate_limit_per_minute: int = 100
     

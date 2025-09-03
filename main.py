@@ -12,10 +12,10 @@ from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
 from app.models.database import Database
 from app.services.news_processor import NewsProcessor
-from app.api.dependencies import set_news_processor, set_database
+from app.api.dependencies import set_news_processor, set_database, set_mongo_database
 from app.api.routes import news, users, system
 from app.middleware import RateLimitMiddleware, RequestLoggingMiddleware
-from app.utils.cache import cache_manager
+# from app.utils.cache import cache_manager  # 캐시 완전 제거
 
 # 로깅 초기화
 setup_logging()
@@ -44,8 +44,23 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("프로덕션 환경에서는 INTERNAL_API_KEY가 필요합니다")
     
     # 데이터베이스 초기화
-    database = Database()
-    set_database(database)
+    if settings.use_mongodb:
+        # MongoDB 우선 사용
+        from app.models.mongodb import MongoDatabase
+        mongodb = MongoDatabase(settings.mongodb_uri)
+        mongo_connected = await mongodb.connect()
+        
+        if mongo_connected:
+            set_mongo_database(mongodb)
+            logger.info("MongoDB Atlas 연결 완료", cluster="verachain")
+        else:
+            # MongoDB 실패시 SQLite fallback
+            logger.warning("MongoDB 연결 실패, SQLite로 fallback")
+            database = Database()
+            set_database(database)
+    else:
+        database = Database()
+        set_database(database)
     
     # 뉴스 프로세서 초기화
     processor = NewsProcessor(settings.openai_api_key)
@@ -62,7 +77,7 @@ async def lifespan(app: FastAPI):
     logger.info("서비스 준비 완료",
                features={
                    "structured_outputs": settings.use_structured_outputs,
-                   "redis_cache": cache_manager._cache_enabled,
+                   "redis_cache": False,  # 캐시 완전 제거
                    "rate_limiting": True,
                    "distributed_locks": True
                })

@@ -15,17 +15,17 @@ from ..services.news_collector import NewsCollector
 from ..core.config import settings
 from ..core.logging import get_logger
 from ..core.security import profile_hash
-from ..utils.cache import cache_manager
+# from ..utils.cache import cache_manager  # 캐시 완전 제거
 
 logger = get_logger("news_processor")
 
 
 class DistributedLock:
-    """Redis 기반 분산 락 (SQLite fallback 포함)"""
+    """분산 락 (캐시 제거됨)"""
     
     def __init__(self, database: Database):
         self.db = database
-        self.redis_available = cache_manager._cache_enabled
+        self.redis_available = False  # 캐시 완전 제거
     
     async def acquire(self, lock_name: str, holder: str, ttl: int = 180) -> bool:
         """분산 락 획득"""
@@ -33,9 +33,10 @@ class DistributedLock:
             try:
                 # Redis 기반 락
                 lock_key = f"lock:{lock_name}"
-                acquired = await cache_manager.redis_client.set(
-                    lock_key, holder, nx=True, ex=ttl
-                )
+                # Redis 제거됨
+                acquired = False  # await cache_manager.redis_client.set(
+                    # lock_key, holder, nx=True, ex=ttl
+                # )
                 if acquired:
                     logger.debug("Redis 락 획득", lock=lock_name, holder=holder[:8])
                 return bool(acquired)
@@ -51,9 +52,9 @@ class DistributedLock:
             try:
                 lock_key = f"lock:{lock_name}"
                 # 현재 홀더 확인 후 TTL 갱신
-                current_holder = await cache_manager.redis_client.get(lock_key)
+                current_holder = None  # await cache_manager.redis_client.get(lock_key)
                 if current_holder == holder:
-                    await cache_manager.redis_client.expire(lock_key, settings.collect_lock_ttl)
+                    # await cache_manager.redis_client.expire(lock_key, settings.collect_lock_ttl)
                     return True
                 return False
             except Exception:
@@ -75,7 +76,7 @@ class DistributedLock:
                     return 0
                 end
                 """
-                await cache_manager.redis_client.eval(lua_script, 1, lock_key, holder)
+                # await cache_manager.redis_client.eval(lua_script, 1, lock_key, holder)
                 logger.debug("Redis 락 해제", lock=lock_name, holder=holder[:8])
                 return
             except Exception:
@@ -239,9 +240,8 @@ class NewsProcessor:
         if not profile:
             raise ValueError("사용자 프로필을 찾을 수 없습니다")
         
-        # 프로필 해시를 포함한 캐시 키 생성
+        # 프로필 해시를 포함한 캐시 키 생성 (reading_mode 제거)
         profile_data = {
-            "reading_mode": profile.reading_mode,
             "job_categories": profile.job_categories,
             "interests": (
                 profile.interests_finance + profile.interests_lifestyle +
@@ -255,39 +255,37 @@ class NewsProcessor:
         cache_key = f"{article_id}_{user_id}_{ph}"
         content_id = hashlib.blake2s(cache_key.encode(), digest_size=12).hexdigest()
         
-        # 캐시 확인
-        cached_content = self.db.get_personalized_content(content_id)
-        if cached_content:
-            logger.debug("개인화 콘텐츠 캐시 히트", cache_id=content_id)
-            
-            # Prometheus 캐시 히트 메트릭 기록 (2025년 모니터링 표준)
-            try:
-                import sys
-                if 'CACHE_HITS' in dir(sys.modules.get('__main__', {})):
-                    main_module = sys.modules['__main__']
-                    if hasattr(main_module, 'CACHE_HITS'):
-                        main_module.CACHE_HITS.labels("personalized").inc()
-            except Exception:
-                pass  # 메트릭 실패는 조용히 무시
-            
-            return cached_content
+        # 캐시 완전 비활성화 (테스트용)
+        cached_content = None
+        # if cached_content:
         
-        # 팩트 조회
+        # 팩트와 원본 기사 조회
         facts = self.db.get_facts(article_id)
         if not facts:
             raise ValueError("팩트를 찾을 수 없습니다")
+            
+        # 원본 기사 제목 조회
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT title FROM original_articles WHERE id = ?', (article_id,))
+            row = cursor.fetchone()
+            original_title = row['title'] if row else facts.what
         
-        # AI 재작성
-        personalized = await self.ai_engine.rewrite_for_user(facts, profile)
+        # 원본 ai_engine으로 되돌림 (정확한 구현)
+        personalized = await self.ai_engine.rewrite_for_user(facts, profile, original_title)
         
-        # 캐시 저장
-        self.db.save_personalized_content(content_id, article_id, user_id, ph, personalized)
+        # 캐시 저장 비활성화
+        # self.db.save_personalized_content(content_id, article_id, user_id, ph, personalized)
         
         logger.info("개인화 콘텐츠 생성 완료", 
                    cache_id=content_id, 
                    user_id=user_id[:10])
         
         personalized['cached'] = False
+        
+        # 캐시 저장 완전 비활성화 (테스트용)
+        # self.db.save_personalized_content(content_id, article_id, user_id, ph, personalized)
+        
         return personalized
     
     async def health_check(self) -> Dict[str, bool]:
@@ -296,7 +294,7 @@ class NewsProcessor:
             "database": await self.db.health_check(),
             "ai_engine": await self.ai_engine.health_check(),
             "news_collector": await self.collector.health_check(),
-            "cache": await cache_manager.health_check()
+            "cache": True  # 캐시 제거됨
         }
         
         logger.info("헬스체크 완료", checks=checks)
