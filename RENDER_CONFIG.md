@@ -3,14 +3,9 @@
 ## Language
 Python 3
 
-## Build Command (Root Directory = news 설정 필요)
+## Build Command (Root Directory = news)
 ```bash
-cd news && python -V && pip -V && ls -la && pip install --upgrade pip setuptools wheel && pip install --no-cache-dir --only-binary=:all: -r requirements.txt
-```
-
-## 또는 Root Directory를 "news"로 설정하고:
-```bash
-python -V && pip -V && ls -la && pip install --upgrade pip setuptools wheel && pip install --no-cache-dir --only-binary=:all: -r requirements.txt
+python -V && python -m pip -V && python -m pip install --upgrade pip setuptools wheel && python -m pip install --no-cache-dir --only-binary=:all: --no-binary=sgmllib3k -r requirements.txt
 ```
 
 ## Start Command  
