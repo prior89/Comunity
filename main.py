@@ -308,8 +308,8 @@ def landing():
         const hh = Math.floor(up/3600), mm = Math.floor((up%3600)/60);
         document.getElementById("uptime").textContent = `${{hh}}h ${{mm}}m`;
 
-        const ok = (h.database && h.ai_engine && h.news_collector !== false);
-        document.getElementById("health").textContent = ok ? "OK" : "Degraded";
+        const ok = (h.status === "healthy" && h.checks && h.checks.database && h.checks.ai_engine && h.checks.news_collector);
+        document.getElementById("health").textContent = ok ? "Healthy" : "Degraded";
         document.getElementById("health").className += ok ? " text-emerald-300" : " text-amber-300";
         document.getElementById("healthDetail").textContent = h ? JSON.stringify(h) : "no data";
       }} catch (e) {{
