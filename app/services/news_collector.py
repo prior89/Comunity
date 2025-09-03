@@ -25,10 +25,24 @@ class NewsCollector:
         self.sources = [
             {
                 'name': '연합뉴스', 
-                'url': 'https://www.yonhapnewstv.co.kr/browse/feed/', 
+                'url': 'https://www.yonhapnews.co.kr/rss/allnews.xml', 
                 'category': 'general'
             },
-            # 추가 소스들을 여기에 정의
+            {
+                'name': 'KBS뉴스',
+                'url': 'https://world.kbs.co.kr/rss/rss_news.htm?lang=k',
+                'category': 'general'
+            },
+            {
+                'name': 'SBS뉴스',
+                'url': 'https://news.sbs.co.kr/news/SectionRssFeed.do?sectionId=01',
+                'category': 'general'  
+            },
+            {
+                'name': 'MBC뉴스',
+                'url': 'https://imnews.imbc.com/rss/news/news_00.xml',
+                'category': 'general'
+            }
         ]
         self.session_timeout = aiohttp.ClientTimeout(total=settings.collect_timeout)
     

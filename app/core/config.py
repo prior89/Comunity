@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     
     # 성능 설정
     articles_per_batch: int = 1  # 데모용 최적화: 최신 1개만
-    collect_timeout: int = 10  # 데모용 빠른 수집
+    collect_timeout: int = 5   # 데모용 초고속 수집
     summary_max: int = 10000
     min_content_len: int = 80  # 품질 향상을 위해 80자로 증가
     rate_limit_per_minute: int = 100
