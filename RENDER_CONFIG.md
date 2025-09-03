@@ -3,15 +3,19 @@
 ## Language
 Python 3
 
-## Build Command  
+## Build Command (Root Directory = news 설정 필요)
 ```bash
-pip install --upgrade pip setuptools wheel
-pip install --only-binary :all: -r requirements.txt
+cd news && python -V && pip -V && ls -la && pip install --upgrade pip setuptools wheel && pip install --no-cache-dir --only-binary=:all: -r requirements.txt
 ```
 
-## Start Command
+## 또는 Root Directory를 "news"로 설정하고:
 ```bash
-python main.py
+python -V && pip -V && ls -la && pip install --upgrade pip setuptools wheel && pip install --no-cache-dir --only-binary=:all: -r requirements.txt
+```
+
+## Start Command  
+```bash
+uvicorn main:app --host 0.0.0.0 --port $PORT
 ```
 
 ## Environment Variables
