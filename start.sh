@@ -1,7 +1,7 @@
 #!/bin/bash
 # Render.com 배포용 시작 스크립트
 
-echo "🚀 kkalkalnews API 시작 중..."
+echo "🚀 VeraChain News API 시작 중..."
 echo "Environment: $ENVIRONMENT"
 echo "MongoDB: $USE_MONGODB"
 echo "Port: $PORT"

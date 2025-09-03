@@ -2,7 +2,7 @@
 // 뉴스 API용 데이터베이스 및 사용자 생성
 
 // 데이터베이스 생성 및 선택
-db = db.getSiblingDB('kkalkalnews');
+db = db.getSiblingDB('verachain_news');
 
 // 애플리케이션 전용 사용자 생성
 db.createUser({
@@ -11,7 +11,7 @@ db.createUser({
   roles: [
     {
       role: 'readWrite',
-      db: 'kkalkalnews'
+      db: 'verachain_news'
     }
   ]
 });
@@ -49,7 +49,7 @@ db.personalization_cache.createIndex(
   { expireAfterSeconds: 2592000 } // 30일 = 30 * 24 * 60 * 60
 );
 
-print('kkalkalnews 데이터베이스 초기화 완료');
+print('verachain_news 데이터베이스 초기화 완료');
 print('사용자: newsuser');
 print('컬렉션: articles, user_profiles, user_activity, personalization_cache');
 print('인덱스 및 TTL 설정 완료');

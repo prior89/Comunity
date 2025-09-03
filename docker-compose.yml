@@ -4,31 +4,31 @@ services:
   # MongoDB 데이터베이스
   mongodb:
     image: mongo:7.0
-    container_name: kkalkalnews_mongodb
+    container_name: verachain_mongodb
     restart: unless-stopped
     ports:
       - "27017:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: password123
-      MONGO_INITDB_DATABASE: kkalkalnews
+      MONGO_INITDB_DATABASE: verachain_news
     volumes:
       - mongodb_data:/data/db
       - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
     networks:
-      - kkalkalnews_network
+      - verachain_network
 
   # 뉴스 API 애플리케이션
   news-api:
     build: .
-    container_name: kkalkalnews_api
+    container_name: verachain_news_api
     restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
       # MongoDB 설정
       USE_MONGODB: "true"
-      MONGODB_URI: "mongodb://newsuser:newspass@mongodb:27017/kkalkalnews"
+      MONGODB_URI: "mongodb://newsuser:newspass@mongodb:27017/verachain_news"
       
       # AI API 키 (환경변수에서 가져오기)
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
@@ -75,5 +75,5 @@ volumes:
   mongodb_data:
 
 networks:
-  kkalkalnews_network:
+  verachain_network:
     driver: bridge
