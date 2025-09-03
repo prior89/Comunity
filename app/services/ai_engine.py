@@ -367,24 +367,38 @@ JSON:
         }
     
     async def health_check(self) -> bool:
-        """간단한 헬스체크 (API 호출 없음)"""
+        """최적화된 헬스체크 (캐시 + API 호출 최소화)"""
+        # 간단한 메모리 캐시 (클래스 변수 사용)
+        if not hasattr(self, '_last_health_check'):
+            self._last_health_check = 0
+            self._cached_health = True
+        
+        import time
+        now = time.time()
+        
+        # 5분 캐시
+        if now - self._last_health_check < 300:  # 5분
+            return self._cached_health
+        
         try:
-            # API 호출 없이 기본 상태만 확인
-            openai_ok = bool(self.openai_client and self.openai_model)
-            groq_available = bool(self.groq_client) if hasattr(self, 'groq_client') else False
+            # API 호출 없이 객체 존재만 확인
+            openai_ok = bool(getattr(self, 'openai_client', None) and getattr(self, 'openai_model', None))
             
-            # OpenAI만 필수, Groq는 선택사항
-            status = openai_ok
+            # 캐시 업데이트
+            self._cached_health = openai_ok
+            self._last_health_check = now
             
-            logger.debug("헬스체크 완료", 
-                        openai=openai_ok, 
-                        groq=groq_available,
-                        status=status,
-                        no_api_calls=True)
-            return status
+            # 로그는 5분에 한 번만
+            logger.info("헬스체크 (캐시)", 
+                       openai=openai_ok, 
+                       cache_expires_in="5min",
+                       no_api_calls=True)
+            return openai_ok
             
         except Exception as e:
             logger.error("헬스체크 실패", error=str(e))
+            self._cached_health = False
+            self._last_health_check = now
             return False
 
     # === 듀얼 AI 아키텍처 메서드들 ===
