@@ -174,17 +174,152 @@ app.include_router(news.router)
 app.include_router(users.router)
 app.include_router(system.router)
 
-# 루트 엔드포인트
-@app.get("/")
-async def root():
-    """루트 엔드포인트"""
+# --- 투자자용 랜딩/상태 라우트 ---
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+from datetime import datetime
+
+SERVICE_NAME = "AI 뉴스 개인화 플랫폼"
+SERVICE_VERSION = settings.app_version
+ENVIRONMENT = settings.environment
+STARTED_AT = datetime.utcnow()
+
+@app.get("/status", response_class=JSONResponse)
+def status_json():
+    uptime = (datetime.utcnow() - STARTED_AT).total_seconds()
     return {
-        "service": settings.app_name,
-        "version": settings.app_version,
+        "service": SERVICE_NAME,
+        "version": SERVICE_VERSION,
         "status": "running",
-        "environment": settings.environment,
-        "docs": "/docs" if settings.debug else "disabled"
+        "environment": ENVIRONMENT,
+        "uptime_seconds": int(uptime),
+        "docs": "disabled",
     }
+
+@app.head("/")
+def head_ok():
+    return Response(status_code=200)
+
+@app.get("/", response_class=HTMLResponse)
+def landing():
+    return HTMLResponse(f"""
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{SERVICE_NAME} · v{SERVICE_VERSION}</title>
+  <meta name="description" content="AI 기반 뉴스 개인화 엔진 API" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .badge {{ @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium; }}
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100">
+  <div class="min-h-screen flex flex-col">
+    <header class="border-b border-slate-800/70">
+      <div class="mx-auto max-w-5xl px-6 py-5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="h-8 w-8 rounded-xl bg-gradient-to-br from-emerald-400 to-cyan-500"></div>
+          <h1 class="text-lg font-semibold">{SERVICE_NAME}</h1>
+          <span class="badge bg-slate-800 text-slate-300">v{SERVICE_VERSION}</span>
+          <span class="badge bg-emerald-900/40 text-emerald-300">{ENVIRONMENT}</span>
+        </div>
+        <a class="text-sm text-slate-300 hover:text-white underline underline-offset-4" href="/status">JSON Status</a>
+      </div>
+    </header>
+
+    <main class="flex-1">
+      <section class="mx-auto max-w-5xl px-6 py-10">
+        <h2 class="text-3xl md:text-4xl font-bold tracking-tight">
+          뉴스를 <span class="text-emerald-400">개인 맞춤형</span>으로 변환하는 AI
+        </h2>
+        <p class="mt-3 text-slate-300">
+          팩트 추출 → 사용자 분석 → 맞춤형 재구성까지 2초에 완성.
+          <span class="text-slate-200">특허 기술</span> 기반 개인화 엔진입니다.
+        </p>
+
+        <div class="mt-8 grid md:grid-cols-3 gap-4">
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+            <div class="text-sm text-slate-400">Uptime</div>
+            <div id="uptime" class="mt-1 text-xl font-semibold">—</div>
+          </div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+            <div class="text-sm text-slate-400">Health</div>
+            <div id="health" class="mt-1 text-xl font-semibold">—</div>
+            <div id="healthDetail" class="mt-1 text-xs text-slate-400"></div>
+          </div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+            <div class="text-sm text-slate-400">Endpoints</div>
+            <ul class="mt-1 space-y-1 text-sm">
+              <li><a class="text-emerald-300 hover:underline" href="/api/system/health">/api/system/health</a></li>
+              <li><a class="text-emerald-300 hover:underline" href="/status">/status</a></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="mt-10 grid md:grid-cols-3 gap-4">
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+            <div class="text-slate-200 font-semibold">AI 팩트 추출</div>
+            <p class="mt-1 text-sm text-slate-400">5W1H 구조화, 수치 데이터 분석, 인용문 정리.</p>
+          </div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+            <div class="text-slate-200 font-semibold">개인화 엔진</div>
+            <p class="mt-1 text-sm text-slate-400">사용자 프로필 기반 맞춤형 콘텐츠 재구성.</p>
+          </div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+            <div class="text-slate-200 font-semibold">클라우드 인프라</div>
+            <p class="mt-1 text-sm text-slate-400">MongoDB Atlas 연동, 확장 가능한 아키텍처.</p>
+          </div>
+        </div>
+
+        <div class="mt-10 rounded-2xl border border-emerald-800/30 bg-emerald-950/20 p-6">
+          <div class="flex items-center gap-2">
+            <div class="h-2 w-2 rounded-full bg-emerald-400"></div>
+            <span class="text-sm font-semibold text-emerald-300">특허 기술</span>
+          </div>
+          <h3 class="mt-2 text-lg font-semibold">다차원 사용자 프로필 분석 기반 동적 콘텐츠 변환</h3>
+          <p class="mt-1 text-sm text-slate-300">
+            정부 우선심사 통과. AI 기반 개인화 기술로 동일한 뉴스를 사용자별 맞춤 콘텐츠로 변환.
+          </p>
+        </div>
+
+        <div class="mt-10 flex flex-wrap gap-3">
+          <a href="/status" class="px-4 py-2 rounded-xl bg-emerald-500/90 hover:bg-emerald-500 text-slate-900 font-semibold">라이브 상태</a>
+          <a href="/api/system/health" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100">헬스체크</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="border-t border-slate-800/70">
+      <div class="mx-auto max-w-5xl px-6 py-6 text-sm text-slate-400">
+        © {datetime.utcnow().year} AI 뉴스 개인화 플랫폼 · All rights reserved.
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    (async () => {{
+      try {{
+        const s = await fetch("/status").then(r => r.json());
+        const h = await fetch("/api/system/health").then(r => r.json()).catch(() => ({{}}));
+
+        const up = s.uptime_seconds ?? 0;
+        const hh = Math.floor(up/3600), mm = Math.floor((up%3600)/60);
+        document.getElementById("uptime").textContent = `${{hh}}h ${{mm}}m`;
+
+        const ok = (h.database && h.ai_engine && h.news_collector !== false);
+        document.getElementById("health").textContent = ok ? "OK" : "Degraded";
+        document.getElementById("health").className += ok ? " text-emerald-300" : " text-amber-300";
+        document.getElementById("healthDetail").textContent = h ? JSON.stringify(h) : "no data";
+      }} catch (e) {{
+        document.getElementById("health").textContent = "Unknown";
+        document.getElementById("healthDetail").textContent = "fetch failed";
+      }}
+    }})();
+  </script>
+</body>
+</html>
+    """)
 
 
 # 개발 서버 실행
