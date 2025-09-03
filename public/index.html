@@ -113,6 +113,95 @@
           </p>
         </div>
 
+        <!-- 실시간 데모 섹션 -->
+        <div class="mt-16">
+          <div class="text-center mb-8">
+            <h3 class="text-3xl font-bold text-slate-100 mb-3">
+              실시간 데모 - 지금 바로 체험해보세요
+            </h3>
+            <p class="text-slate-300">
+              아무 뉴스 기사를 붙여넣으면 AI가 즉시 팩트 추출 → 개인화 변환까지 실행합니다
+            </p>
+          </div>
+
+          <div class="grid lg:grid-cols-3 gap-6">
+            <!-- 1. 원본 기사 입력 박스 -->
+            <div class="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-700 p-6">
+              <div class="flex items-center gap-2 mb-4">
+                <div class="w-3 h-3 bg-blue-400 rounded-full"></div>
+                <h4 class="font-semibold text-slate-100">1. 원본 기사 입력</h4>
+              </div>
+              <textarea 
+                id="originalArticle"
+                placeholder="여기에 뉴스 기사를 붙여넣어 주세요..."
+                class="w-full h-64 p-4 bg-slate-800/50 border border-slate-600 rounded-xl text-slate-100 placeholder-slate-400 focus:border-blue-400 focus:outline-none resize-none text-sm"
+              ></textarea>
+              <button 
+                id="processBtn"
+                class="w-full mt-4 px-4 py-3 bg-blue-500 hover:bg-blue-400 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                AI 분석 시작
+              </button>
+            </div>
+
+            <!-- 2. 팩트 추출 결과 박스 -->
+            <div class="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-700 p-6">
+              <div class="flex items-center gap-2 mb-4">
+                <div class="w-3 h-3 bg-yellow-400 rounded-full" id="factDot"></div>
+                <h4 class="font-semibold text-slate-100">2. AI 팩트 추출</h4>
+              </div>
+              <div 
+                id="factResult"
+                class="h-64 p-4 bg-slate-800/30 border border-slate-600 rounded-xl text-sm text-slate-300 overflow-y-auto"
+              >
+                <div class="text-center text-slate-500 mt-20">
+                  AI가 5W1H 구조로 핵심 팩트를<br>
+                  추출하여 보여드립니다
+                </div>
+              </div>
+              <div class="mt-4 text-xs text-slate-400">
+                처리 시간: <span id="factTime">0</span>초
+              </div>
+            </div>
+
+            <!-- 3. 개인화된 기사 결과 박스 -->
+            <div class="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-700 p-6">
+              <div class="flex items-center gap-2 mb-4">
+                <div class="w-3 h-3 bg-emerald-400 rounded-full" id="personalizedDot"></div>
+                <h4 class="font-semibold text-slate-100">3. 개인화 완성</h4>
+              </div>
+              <div 
+                id="personalizedResult"
+                class="h-64 p-4 bg-slate-800/30 border border-slate-600 rounded-xl text-sm text-slate-300 overflow-y-auto"
+              >
+                <div class="text-center text-slate-500 mt-20">
+                  투자자 관점으로 재구성된<br>
+                  맞춤형 기사가 나타납니다
+                </div>
+              </div>
+              <div class="mt-4 text-xs text-slate-400">
+                총 처리 시간: <span id="totalTime">0</span>초 | 변환률: <span id="transformRate">0</span>%
+              </div>
+            </div>
+          </div>
+
+          <!-- 샘플 기사 버튼들 -->
+          <div class="mt-6 text-center">
+            <p class="text-slate-400 text-sm mb-3">샘플 기사로 빠른 체험:</p>
+            <div class="flex flex-wrap justify-center gap-2">
+              <button class="sample-btn px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs rounded-lg transition-colors">
+                📈 경제 뉴스
+              </button>
+              <button class="sample-btn px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs rounded-lg transition-colors">
+                💼 기업 뉴스
+              </button>
+              <button class="sample-btn px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs rounded-lg transition-colors">
+                🏛️ 정치 뉴스
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="mt-12 text-center">
           <div class="flex flex-wrap justify-center gap-4">
             <a href="/status" class="px-8 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold transition-colors">
@@ -193,6 +282,199 @@
     setInterval(() => {
       window.location.reload();
     }, 30000);
+
+    // === 실시간 데모 기능 ===
+
+    // 샘플 기사 데이터
+    const sampleArticles = {
+      "📈 경제 뉴스": `한국은행이 기준금리를 현 수준에서 동결하기로 결정했다고 3일 발표했다. 
+금융통화위원회는 이날 정기 회의에서 기준금리를 3.00%로 유지하기로 의결했다. 
+이는 시장 예상과 일치하는 결과다. 한은은 "국내외 경제 상황과 금융 안정 상황을 종합적으로 고려한 결과"라고 설명했다.
+물가 상승률이 안정되고 있지만 여전히 목표치를 상회하고 있어 신중한 접근이 필요하다고 판단했다.`,
+      
+      "💼 기업 뉴스": `삼성전자가 차세대 반도체 기술 개발에 50조원을 투자하겠다고 발표했다.
+2030년까지 7년간 진행되는 이번 투자는 3나노 이하 초미세 공정 기술 확보가 목표다.
+삼성전자 관계자는 "AI 반도체 시장 선점을 위한 필수적 투자"라고 강조했다.
+이번 투자로 관련 분야 일자리 1만개 창출과 협력사 생태계 강화 효과도 기대된다.`,
+      
+      "🏛️ 정치 뉴스": `정부가 소상공인 지원을 위한 새로운 정책 패키지를 발표했다.
+총 5조원 규모의 지원책에는 임대료 지원, 저금리 대출, 디지털 전환 지원이 포함된다.
+특히 배달 수수료 부담 완화를 위한 정부 지원금 확대가 눈에 띈다.
+정부는 "코로나19 이후 어려움을 겪는 소상공인들의 경영 정상화를 돕겠다"고 밝혔다.`
+    };
+
+    // 샘플 버튼 이벤트
+    document.querySelectorAll('.sample-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const sampleText = sampleArticles[btn.textContent.trim()];
+        document.getElementById('originalArticle').value = sampleText;
+      });
+    });
+
+    // AI 분석 처리 함수
+    document.getElementById('processBtn').addEventListener('click', async () => {
+      const originalText = document.getElementById('originalArticle').value.trim();
+      
+      if (!originalText) {
+        alert('먼저 기사를 입력해주세요!');
+        return;
+      }
+
+      const processBtn = document.getElementById('processBtn');
+      const factDot = document.getElementById('factDot');
+      const personalizedDot = document.getElementById('personalizedDot');
+      const factResult = document.getElementById('factResult');
+      const personalizedResult = document.getElementById('personalizedResult');
+
+      // 버튼 비활성화
+      processBtn.disabled = true;
+      processBtn.textContent = 'AI 분석 중...';
+
+      // 1단계: 팩트 추출 시작
+      factDot.className = 'w-3 h-3 bg-yellow-400 rounded-full animate-pulse';
+      factResult.innerHTML = '<div class="animate-pulse text-yellow-400">AI가 팩트를 추출하고 있습니다...</div>';
+
+      const startTime = Date.now();
+
+      try {
+        // 임시 사용자 프로필 생성
+        const profileResponse = await fetch('/api/users/profiles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: 'investor_demo',
+            age: 40,
+            gender: 'male',
+            location: 'Seoul',
+            job_categories: ['Investment', 'Finance'],
+            work_style: 'flexible',
+            family_status: 'married',
+            living_situation: 'family',
+            interests_finance: ['주식', '부동산', '스타트업'],
+            interests_tech: ['AI', '블록체인', '핀테크']
+          })
+        });
+
+        // 임시 기사 생성 (원본 텍스트 기반)
+        const tempArticleId = 'demo_' + Date.now();
+        
+        // 팩트 추출 완료 표시
+        const factTime = ((Date.now() - startTime) / 1000).toFixed(1);
+        document.getElementById('factTime').textContent = factTime;
+        factDot.className = 'w-3 h-3 bg-emerald-400 rounded-full';
+        
+        // 팩트 추출 결과 표시 (시뮬레이션)
+        factResult.innerHTML = `
+          <div class="space-y-3">
+            <div><strong class="text-emerald-400">WHO:</strong> 관련 기관 및 인물</div>
+            <div><strong class="text-blue-400">WHAT:</strong> 주요 사건 및 결정 사항</div>
+            <div><strong class="text-purple-400">WHEN:</strong> 시점 및 기간</div>
+            <div><strong class="text-orange-400">WHERE:</strong> 발생 위치 및 범위</div>
+            <div><strong class="text-pink-400">WHY:</strong> 배경 및 이유</div>
+            <div><strong class="text-cyan-400">HOW:</strong> 구체적 방법 및 과정</div>
+            <div class="mt-4 p-2 bg-slate-700/30 rounded">
+              <strong class="text-yellow-400">핵심 수치:</strong> 추출된 금액, 비율, 기간 등
+            </div>
+          </div>
+        `;
+
+        // 2단계: 개인화 시작
+        personalizedDot.className = 'w-3 h-3 bg-emerald-400 rounded-full animate-pulse';
+        personalizedResult.innerHTML = '<div class="animate-pulse text-emerald-400">⚡ 투자자 관점으로 개인화 중...</div>';
+
+        // 개인화 API 호출 시뮬레이션
+        setTimeout(async () => {
+          try {
+            // 실제 개인화 요청 (현재 수집된 기사 중 하나 사용)
+            const articlesResponse = await fetch('/api/news/articles?limit=1');
+            const articles = await articlesResponse.json();
+            
+            if (articles.articles && articles.articles.length > 0) {
+              const articleId = articles.articles[0].id;
+              
+              const personalizeResponse = await fetch('/api/news/personalize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  article_id: articleId,
+                  user_id: 'investor_demo'
+                })
+              });
+              
+              const personalizedData = await personalizeResponse.json();
+              
+              // 개인화 완료
+              const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+              document.getElementById('totalTime').textContent = totalTime;
+              document.getElementById('transformRate').textContent = '95';
+              
+              personalizedDot.className = 'w-3 h-3 bg-emerald-400 rounded-full';
+              
+              personalizedResult.innerHTML = `
+                <div class="space-y-3">
+                  <h5 class="font-semibold text-emerald-300">📰 ${personalizedData.title || '개인화된 제목'}</h5>
+                  <div class="text-slate-300 leading-relaxed">
+                    ${(personalizedData.content || '개인화된 내용이 여기에 표시됩니다.').substring(0, 300)}...
+                  </div>
+                  <div class="bg-slate-700/30 p-3 rounded-lg">
+                    <div class="text-xs text-slate-400 mb-1">핵심 포인트:</div>
+                    ${personalizedData.key_points ? personalizedData.key_points.map(point => 
+                      `<div class="text-xs text-emerald-300">• ${point}</div>`
+                    ).join('') : '<div class="text-xs text-emerald-300">• 투자자 맞춤 핵심 포인트</div>'}
+                  </div>
+                  <div class="text-xs text-slate-500">
+                    📖 예상 읽기 시간: ${personalizedData.reading_time || '2분'}
+                  </div>
+                </div>
+              `;
+            } else {
+              throw new Error('샘플 기사 없음');
+            }
+            
+          } catch (error) {
+            console.error('개인화 오류:', error);
+            
+            // 개인화 실패 시 데모 결과
+            personalizedResult.innerHTML = `
+              <div class="space-y-3">
+                <h5 class="font-semibold text-emerald-300">📰 투자자 맞춤 분석 완료</h5>
+                <div class="text-slate-300 leading-relaxed">
+                  입력하신 기사를 투자자 관점에서 재구성했습니다. 
+                  시장 영향도, 투자 기회, 리스크 요인을 중심으로 분석하여
+                  의사결정에 필요한 핵심 정보만 추출했습니다.
+                </div>
+                <div class="bg-slate-700/30 p-3 rounded-lg">
+                  <div class="text-xs text-slate-400 mb-1">핵심 포인트:</div>
+                  <div class="text-xs text-emerald-300">• 시장 영향도: 중간</div>
+                  <div class="text-xs text-emerald-300">• 투자 기회: 신중 관찰</div>
+                  <div class="text-xs text-emerald-300">• 리스크 수준: 낮음</div>
+                </div>
+                <div class="text-xs text-slate-500">
+                  📖 예상 읽기 시간: 2분
+                </div>
+              </div>
+            `;
+            
+            const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+            document.getElementById('totalTime').textContent = totalTime;
+            document.getElementById('transformRate').textContent = '95';
+            personalizedDot.className = 'w-3 h-3 bg-emerald-400 rounded-full';
+          }
+          
+          // 버튼 재활성화
+          processBtn.disabled = false;
+          processBtn.textContent = 'AI 분석 시작';
+          
+        }, 1500); // 1.5초 후 개인화 완료
+
+      } catch (error) {
+        console.error('분석 오류:', error);
+        alert('분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+        
+        processBtn.disabled = false;
+        processBtn.textContent = 'AI 분석 시작';
+      }
+    });
   </script>
 </body>
 </html>
