@@ -202,7 +202,16 @@ def head_ok():
 
 @app.get("/", response_class=HTMLResponse)
 def landing():
-    return HTMLResponse(f"""
+    # public/index.html 파일을 직접 읽어서 반환
+    try:
+        import os
+        html_path = os.path.join(os.path.dirname(__file__), "public", "index.html")
+        with open(html_path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+        return HTMLResponse(html_content)
+    except FileNotFoundError:
+        # fallback HTML
+        return HTMLResponse(f"""
 <!doctype html>
 <html lang="ko">
 <head>
