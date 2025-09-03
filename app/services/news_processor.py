@@ -208,8 +208,8 @@ class NewsProcessor:
                         logger.debug("기사 저장 스킵 (중복)", article_id=article['id'])
                         continue
                     
-                    # 팩트 추출
-                    facts = await self.ai_engine.extract_facts(article)
+                    # 팩트 추출 (OpenAI 전용 - 정확도 우선)
+                    facts = await self.ai_engine.extract_facts_openai(article)
                     
                     # 팩트 저장
                     self.db.save_facts(article['id'], facts)
@@ -271,8 +271,14 @@ class NewsProcessor:
             row = cursor.fetchone()
             original_title = row['title'] if row else facts.what
         
-        # 원본 ai_engine으로 되돌림 (정확한 구현)
-        personalized = await self.ai_engine.rewrite_for_user(facts, profile, original_title)
+        # 듀얼 AI 파이프라인: Groq로 개인화 (창의성과 속도 우선)
+        if self.ai_engine.groq_client:
+            personalized = await self.ai_engine.personalize_groq(facts, profile, original_title)
+            logger.info("Groq 개인화 파이프라인 사용", user_id=user_id[:10])
+        else:
+            # Groq 없을 때 OpenAI로 대체
+            personalized = await self.ai_engine.rewrite_for_user(facts, profile, original_title)
+            logger.info("OpenAI 대체 파이프라인 사용", user_id=user_id[:10])
         
         # 캐시 저장 비활성화
         # self.db.save_personalized_content(content_id, article_id, user_id, ph, personalized)

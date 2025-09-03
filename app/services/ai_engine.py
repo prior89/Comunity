@@ -19,25 +19,32 @@ logger = get_logger("ai_engine")
 
 
 class AIEngine:
-    """최적화된 AI 기반 콘텐츠 처리 엔진"""
+    """듀얼 AI 아키텍처 - OpenAI(팩트추출) + Groq(개인화)"""
     
-    def __init__(self, api_key: str):
-        if settings.ai_provider == "groq":
-            if not settings.groq_api_key:
-                raise RuntimeError("GROQ_API_KEY가 설정되어 있지 않습니다.")
-            self.client = AsyncGroq(api_key=settings.groq_api_key)
-            self.model = settings.groq_model
-            self.provider = "groq"
+    def __init__(self, openai_api_key: str):
+        # OpenAI 클라이언트 (팩트 추출용)
+        if not openai_api_key or openai_api_key == "test-key":
+            raise RuntimeError("OPENAI_API_KEY가 설정되어 있지 않습니다.")
+        self.openai_client = AsyncOpenAI(
+            api_key=openai_api_key,
+            timeout=float(settings.openai_timeout),
+            max_retries=0
+        )
+        self.openai_model = settings.openai_model
+        
+        # Groq 클라이언트 (개인화용)
+        self.groq_client = None
+        self.groq_model = settings.groq_model
+        if settings.groq_api_key:
+            self.groq_client = AsyncGroq(api_key=settings.groq_api_key)
+            logger.info("듀얼 AI 엔진 초기화", openai=True, groq=True)
         else:
-            if not api_key or api_key == "test-key":
-                raise RuntimeError("OPENAI_API_KEY가 설정되어 있지 않습니다.")
-            self.client = AsyncOpenAI(
-                api_key=api_key,
-                timeout=float(settings.openai_timeout),
-                max_retries=0
-            )
-            self.model = settings.openai_model
-            self.provider = "openai"
+            logger.warning("Groq API 키 없음, OpenAI만 사용")
+        
+        # 기본 설정 유지
+        self.client = self.openai_client  # 기본 호환성
+        self.model = self.openai_model
+        self.provider = "dual"
         self._structured_outputs_tested = False
         self._supports_structured = None
         
@@ -348,17 +355,173 @@ JSON:
         }
     
     async def health_check(self) -> bool:
-        """AI 엔진 상태 확인"""
+        """듀얼 AI 엔진 상태 확인"""
         try:
+            # OpenAI 헬스체크 (필수)
             async with self._concurrent_limit:
-                response = await self.client.chat.completions.create(
-                    model=self.model,
+                response = await self.openai_client.chat.completions.create(
+                    model=self.openai_model,
                     messages=[{"role": "user", "content": "ping"}],
                     temperature=0,
                     max_tokens=5,
                     timeout=10.0
                 )
-                return bool(response.choices)
+                openai_ok = bool(response.choices)
+            
+            # Groq 헬스체크 (선택사항)
+            groq_ok = True  # Groq 없어도 서비스 가능
+            if self.groq_client:
+                try:
+                    groq_response = await self.groq_client.chat.completions.create(
+                        model=self.groq_model,
+                        messages=[{"role": "user", "content": "ping"}],
+                        temperature=0,
+                        max_tokens=5
+                    )
+                    groq_ok = bool(groq_response.choices)
+                except Exception as e:
+                    logger.warning("Groq 헬스체크 실패, OpenAI로 대체", error=str(e))
+                    groq_ok = False
+            
+            logger.info("듀얼 AI 헬스체크", openai=openai_ok, groq=groq_ok)
+            return openai_ok  # OpenAI만 필수
+            
         except Exception as e:
             logger.error("AI 엔진 헬스체크 실패", error=str(e))
             return False
+
+    # === 듀얼 AI 아키텍처 메서드들 ===
+    
+    async def extract_facts_openai(self, article: Dict[str, Any]) -> ExtractedFacts:
+        """OpenAI 전용 팩트 추출 (정확도 우선)"""
+        try:
+            async with self._concurrent_limit:
+                response = await self.openai_client.chat.completions.create(
+                    model=self.openai_model,
+                    messages=[
+                        {"role": "system", "content": """당신은 뉴스 팩트 추출 전문가입니다. 
+뉴스 기사에서 5W1H 구조로 정확한 팩트만 추출하세요.
+JSON 형식으로 반환해야 합니다."""},
+                        {"role": "user", "content": f"""
+다음 뉴스 기사에서 팩트를 추출해주세요:
+
+제목: {article.get('title', '')}
+내용: {article.get('content', '')}
+
+다음 JSON 형식으로 응답하세요:
+{{
+  "who": ["관련된 인물/기관 리스트"],
+  "what": "무엇이 일어났는지",
+  "when": "언제 일어났는지",
+  "where": "어디서 일어났는지", 
+  "why": "왜 일어났는지",
+  "how": "어떻게 일어났는지",
+  "numbers": {{"핵심 수치들": "값들"}},
+  "quotes": ["중요한 인용문들"],
+  "verified_facts": ["검증된 핵심 사실들"]
+}}
+"""}
+                    ],
+                    temperature=0.1,  # 정확도 우선
+                    max_tokens=2000
+                )
+                
+                if not response.choices or not response.choices[0].message.content:
+                    raise RuntimeError("OpenAI 팩트 추출 응답 없음")
+                
+                data = json.loads(response.choices[0].message.content)
+                logger.info("OpenAI 팩트 추출 완료", 
+                           facts_count=len(data.get("verified_facts", [])),
+                           article_id=article.get('id'))
+                
+                return ExtractedFacts(
+                    who=(data.get("who", []) or [])[:10],
+                    what=(data.get("what", "") or "")[:200],
+                    when=(data.get("when", "") or "")[:100],
+                    where=(data.get("where", "") or "")[:100],
+                    why=(data.get("why", "") or "")[:200],
+                    how=(data.get("how", "") or "")[:200],
+                    numbers=data.get("numbers", {}) or {},
+                    quotes=(data.get("quotes", []) or [])[:5],
+                    verified_facts=(data.get("verified_facts", []) or [])[:10]
+                )
+                
+        except Exception as e:
+            logger.error("OpenAI 팩트 추출 실패", error=str(e))
+            return ExtractedFacts(
+                who=[], what=article.get('title', '')[:200], when="", where="", 
+                why="", how="", numbers={}, quotes=[], verified_facts=[]
+            )
+
+    async def personalize_groq(self, facts: ExtractedFacts, profile: UserProfile, original_title: str) -> Dict[str, Any]:
+        """Groq 전용 개인화 (창의성과 속도 우선)"""
+        if not self.groq_client:
+            logger.warning("Groq 클라이언트 없음, OpenAI로 대체")
+            return await self.rewrite_for_user(facts, profile, original_title)
+        
+        # 사용자 관심사 통합
+        all_interests = (
+            profile.interests_finance + profile.interests_lifestyle +
+            profile.interests_hobby + profile.interests_tech
+        )[:5]
+        
+        primary_job = profile.job_categories[0] if profile.job_categories else "일반"
+        
+        try:
+            response = await self.groq_client.chat.completions.create(
+                model=self.groq_model,
+                messages=[
+                    {"role": "system", "content": f"""당신은 {primary_job} 전문가입니다.
+주어진 팩트를 바탕으로 {primary_job} 관점에서 개인화된 뉴스 분석을 작성하세요.
+창의적이고 통찰력 있는 분석을 제공하되, 팩트는 정확히 유지하세요."""},
+                    {"role": "user", "content": f"""
+팩트 정보:
+- 누가: {', '.join(facts.who)}
+- 무엇: {facts.what}
+- 언제: {facts.when}
+- 어디: {facts.where}
+- 왜: {facts.why}
+- 어떻게: {facts.how}
+- 핵심 수치: {facts.numbers}
+- 인용문: {', '.join(facts.quotes)}
+
+사용자 프로필:
+- 직업: {primary_job}
+- 관심사: {', '.join(all_interests)}
+- 거주지: {profile.location}
+- 나이: {profile.age}
+
+위 팩트를 바탕으로 {primary_job} 관점에서 개인화된 뉴스 분석을 JSON 형식으로 작성하세요:
+
+{{
+  "content": "2000자 내외의 개인화된 분석 내용",
+  "key_points": ["핵심 포인트 3개"],
+  "reading_time": "예상 읽기 시간",
+  "disclaimer": "면책조항"
+}}
+"""}
+                ],
+                temperature=0.7,  # 창의성 우선
+                max_tokens=8000,
+                response_format={"type": "json_object"}
+            )
+            
+            if not response.choices or not response.choices[0].message.content:
+                raise RuntimeError("Groq 개인화 응답 없음")
+            
+            data = json.loads(response.choices[0].message.content)
+            logger.info("Groq 개인화 완료",
+                       content_length=len(data.get("content", "")),
+                       user_job=primary_job)
+            
+            return {
+                "title": original_title,
+                "content": data.get("content", ""),
+                "key_points": (data.get("key_points", []) or [])[:3],
+                "reading_time": data.get("reading_time", "2분"),
+                "disclaimer": data.get("disclaimer", f"본 분석은 {primary_job} 관점에서의 참고용 정보입니다.")
+            }
+            
+        except Exception as e:
+            logger.error("Groq 개인화 실패, OpenAI로 대체", error=str(e))
+            return await self.rewrite_for_user(facts, profile, original_title)
