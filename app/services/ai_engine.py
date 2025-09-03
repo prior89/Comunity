@@ -7,7 +7,7 @@ from time import monotonic
 from typing import Dict, Any
 
 from openai import AsyncOpenAI
-from groq import AsyncGroq
+# from groq import AsyncGroq  # Render 배포를 위해 제거
 
 from ..models.schemas import ExtractedFacts, UserProfile, FACTS_SCHEMA, REWRITE_SCHEMA
 from ..core.config import settings
@@ -22,22 +22,17 @@ class AIEngine:
     """최적화된 AI 기반 콘텐츠 처리 엔진"""
     
     def __init__(self, api_key: str):
-        if settings.ai_provider == "groq":
-            if not settings.groq_api_key:
-                raise RuntimeError("GROQ_API_KEY가 설정되어 있지 않습니다.")
-            self.client = AsyncGroq(api_key=settings.groq_api_key)
-            self.model = settings.groq_model
-            self.provider = "groq"
-        else:
-            if not api_key or api_key == "test-key":
-                raise RuntimeError("OPENAI_API_KEY가 설정되어 있지 않습니다.")
-            self.client = AsyncOpenAI(
-                api_key=api_key,
-                timeout=float(settings.openai_timeout),
-                max_retries=0
-            )
-            self.model = settings.openai_model
-            self.provider = "openai"
+        # Render 배포를 위해 OpenAI만 사용
+        if not api_key or api_key == "test-key":
+            raise RuntimeError("OPENAI_API_KEY가 설정되어 있지 않습니다.")
+        
+        self.client = AsyncOpenAI(
+            api_key=api_key,
+            timeout=float(settings.openai_timeout),
+            max_retries=0
+        )
+        self.model = settings.openai_model
+        self.provider = "openai"
         self._structured_outputs_tested = False
         self._supports_structured = None
         
