@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from datetime import datetime
 
 from ...models.schemas import UserProfileCreateRequest, UserProfile, ActivityLog
-from ...api.dependencies import get_database, log_request_info
+from ...api.dependencies import get_database, get_active_database, log_request_info
 from ...models.database import Database
 from ...core.logging import get_logger, now_kst
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/users", tags=["users"])
 @router.post("/profiles")
 async def create_user_profile(
     profile_request: UserProfileCreateRequest,
-    db: Database = Depends(get_database),
+    db = Depends(get_active_database),
     request_info: Dict[str, str] = Depends(log_request_info)
 ):
     """사용자 프로필 생성"""
@@ -74,7 +74,7 @@ async def create_user_profile(
 @router.get("/profiles/{user_id}")
 async def get_user_profile(
     user_id: str,
-    db: Database = Depends(get_database),
+    db = Depends(get_active_database),
     request_info: Dict[str, str] = Depends(log_request_info)
 ):
     """사용자 프로필 조회"""
@@ -118,7 +118,7 @@ async def get_user_profile(
 @router.post("/activity")
 async def log_user_activity(
     activity: ActivityLog,
-    db: Database = Depends(get_database),
+    db = Depends(get_active_database),
     request_info: Dict[str, str] = Depends(log_request_info)
 ):
     """사용자 활동 로깅"""
@@ -158,7 +158,7 @@ async def log_user_activity(
 async def get_user_activity(
     user_id: str,
     limit: int = 20,
-    db: Database = Depends(get_database),
+    db = Depends(get_active_database),
     request_info: Dict[str, str] = Depends(log_request_info)
 ):
     """사용자 활동 히스토리 조회"""
