@@ -272,7 +272,7 @@
         await fetch('/api/news/refresh', { method: 'POST' });
         
         setTimeout(async () => {
-          // 최신 기사 조회
+          // 최신 기사 조회 (팩트 포함)
           const articlesResponse = await fetch('/api/news/articles?limit=1');
           const articles = await articlesResponse.json();
           
