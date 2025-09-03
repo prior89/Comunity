@@ -45,7 +45,8 @@
           </h2>
           <p class="mt-6 text-xl text-slate-300 max-w-3xl mx-auto">
             팩트 추출 → 사용자 분석 → 맞춤형 재구성까지 <span class="text-emerald-400 font-semibold">2초</span>에 완성.<br>
-            <span class="text-slate-200">특허 기술</span> 기반 개인화 엔진으로 투자자 맞춤 뉴스 분석을 제공합니다.
+            <span class="text-slate-200">특허 기술</span> 기반 개인화 엔진으로 투자자 맞춤 뉴스 분석을 제공합니다.<br>
+            <span class="text-xs text-slate-400">OpenAI GPT-4o-mini + Groq Llama 멀티 AI 지원</span>
           </p>
         </div>
 
@@ -132,7 +133,7 @@
             © 2025 AI 뉴스 개인화 플랫폼 · VeraChain Ecosystem · All rights reserved.
           </p>
           <p class="text-xs mt-2 text-slate-500">
-            Powered by FastAPI + MongoDB Atlas + OpenAI GPT-4o-mini
+            Powered by FastAPI + MongoDB Atlas + OpenAI GPT-4o-mini + Groq Llama
           </p>
         </div>
       </div>
@@ -159,10 +160,11 @@
         document.getElementById("env-badge").textContent = status.environment || "unknown";
 
         // 헬스체크 표시
-        const isHealthy = health.checks && 
+        const isHealthy = health.status === "healthy" && 
+          health.checks && 
           health.checks.database && 
           health.checks.ai_engine && 
-          health.checks.news_collector !== false;
+          health.checks.news_collector;
 
         const healthElement = document.getElementById("health");
         const healthDot = document.getElementById("health-dot");
