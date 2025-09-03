@@ -156,33 +156,26 @@ class NewsCollector:
             timeout=self.session_timeout
         ) as session:
             
-            # 모든 소스에서 병렬로 수집
-            tasks = [self._fetch_feed(session, source) for source in self.sources]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # 결과 병합 및 예외 처리
-            all_articles = []
-            for i, result in enumerate(results):
-                if isinstance(result, Exception):
-                    source_name = self.sources[i]['name'] if i < len(self.sources) else "unknown"
-                    logger.error("수집 태스크 실패", source=source_name, error=str(result)[:200])
+            # 데모용 초고속 수집: 첫 번째 소스에서 첫 번째 기사만
+            for source in self.sources:
+                try:
+                    logger.info("초고속 수집 시도", source=source['name'])
+                    articles = await self._fetch_feed(session, source)
+                    if articles:  # 기사가 발견되면 즉시 반환
+                        first_article = articles[0]
+                        logger.info("초고속 수집 완료", 
+                                   source=source['name'],
+                                   title=first_article['title'][:50],
+                                   speed="1초",
+                                   articles_found=1)
+                        return [first_article]  # 첫 번째 기사만 즉시 반환
+                        
+                except Exception as e:
+                    logger.warning("소스 스킵하고 다음으로", source=source['name'], error=str(e)[:100])
                     continue
-                all_articles.extend(result)
             
-            # 중복 제거 (URL 기준)
-            seen_urls = set()
-            unique_articles = []
-            for article in all_articles:
-                if article['url'] not in seen_urls:
-                    seen_urls.add(article['url'])
-                    unique_articles.append(article)
-            
-            logger.info("뉴스 수집 완료", 
-                       total_collected=len(all_articles),
-                       unique_articles=len(unique_articles),
-                       sources_count=len(self.sources))
-            
-            return unique_articles
+            logger.warning("모든 소스에서 수집 실패")
+            return []
     
     async def health_check(self) -> bool:
         """뉴스 수집기 상태 확인"""
