@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     """환경별 설정 관리"""
     
     # 기본 설정
-    app_name: str = "깔깔뉴스 API"
+    app_name: str = "AI 뉴스 개인화 플랫폼"
     app_version: str = "3.0.8"
     environment: str = "development"
     debug: bool = False
