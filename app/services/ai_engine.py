@@ -25,21 +25,29 @@ class AIEngine:
         # OpenAI 클라이언트 (팩트 추출용)
         if not openai_api_key or openai_api_key == "test-key":
             raise RuntimeError("OPENAI_API_KEY가 설정되어 있지 않습니다.")
-        self.openai_client = AsyncOpenAI(
-            api_key=openai_api_key,
-            timeout=float(settings.openai_timeout),
-            max_retries=0
-        )
+        # OpenAI 클라이언트 초기화 (안전한 방식)
+        try:
+            self.openai_client = AsyncOpenAI(
+                api_key=openai_api_key,
+                timeout=float(settings.openai_timeout),
+                max_retries=0
+            )
+        except Exception as e:
+            logger.error("OpenAI 클라이언트 초기화 실패", error=str(e))
+            raise RuntimeError(f"OpenAI 초기화 실패: {e}")
         self.openai_model = settings.openai_model
         
-        # Groq 클라이언트 (개인화용)
+        # Groq 클라이언트 (개인화용) - 선택사항
         self.groq_client = None
         self.groq_model = settings.groq_model
-        if settings.groq_api_key:
-            self.groq_client = AsyncGroq(api_key=settings.groq_api_key)
-            logger.info("듀얼 AI 엔진 초기화", openai=True, groq=True)
+        if hasattr(settings, 'groq_api_key') and settings.groq_api_key:
+            try:
+                self.groq_client = AsyncGroq(api_key=settings.groq_api_key)
+                logger.info("듀얼 AI 엔진 초기화", openai=True, groq=True)
+            except Exception as e:
+                logger.warning("Groq 초기화 실패, OpenAI만 사용", error=str(e))
         else:
-            logger.warning("Groq API 키 없음, OpenAI만 사용")
+            logger.info("Groq API 키 없음, OpenAI 전용 모드")
         
         # 기본 설정 유지
         self.client = self.openai_client  # 기본 호환성
