@@ -69,7 +69,9 @@ async def lifespan(app: FastAPI):
     
     # 서비스 시작 시 기존 락 강제 해제 (단일 인스턴스 환경)
     try:
-        await processor.distributed_lock.release_all()
+        # 분산락 초기화 (존재하는 락 문서 정리)
+        if hasattr(processor.distributed_lock, 'collection'):
+            await processor.distributed_lock.collection.delete_many({"resource": "news_collector"})
         logger.info("기존 분산 락 해제 완료")
     except Exception as e:
         logger.warning(f"분산 락 해제 실패 (무시): {e}")

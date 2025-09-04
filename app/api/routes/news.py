@@ -21,16 +21,39 @@ router = APIRouter(prefix="/api/news", tags=["news"])
 async def refresh_news(
     background_tasks: BackgroundTasks,
     request: Request,
+    force: bool = False,
     _: None = Depends(require_write_permission),
     processor: NewsProcessor = Depends(get_news_processor),
     request_info: Dict[str, str] = Depends(log_request_info)
 ):
     """뉴스 수집 및 처리 (백그라운드)"""
     
-    logger.info("뉴스 갱신 요청", **request_info)
+    logger.info("뉴스 갱신 요청", force=force, **request_info)
     
-    # 백그라운드에서 뉴스 처리
-    background_tasks.add_task(processor.process_news_batch)
+    # force=True일 때 분산 락 무시하고 강제 실행
+    if force:
+        try:
+            # MongoDB에서 락 문서 직접 삭제
+            if hasattr(processor, 'distributed_lock') and hasattr(processor.distributed_lock, 'collection'):
+                await processor.distributed_lock.collection.delete_many({"resource": "news_collector"})
+                logger.info("강제 수집: 분산 락 해제 완료")
+            
+            # 즉시 실행 (백그라운드 아님)
+            result = await processor.process_news_batch()
+            return {
+                "message": "뉴스 갱신이 강제로 완료되었습니다",
+                "status": "completed",
+                "result": result
+            }
+        except Exception as e:
+            logger.error(f"강제 수집 실패: {e}")
+            return {
+                "message": f"강제 수집 실패: {e}",
+                "status": "error"
+            }
+    
+    # 일반 백그라운드 처리 (force 파라미터 전달)
+    background_tasks.add_task(processor.process_news_batch, force)
     
     return {
         "message": "뉴스 갱신이 백그라운드에서 시작되었습니다",

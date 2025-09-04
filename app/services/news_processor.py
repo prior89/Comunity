@@ -144,19 +144,23 @@ class NewsProcessor:
         self._local_lock = asyncio.Lock()
         self._current_holder = None
     
-    async def process_news_batch(self) -> bool:
+    async def process_news_batch(self, force: bool = False) -> bool:
         """뉴스 수집 및 처리 (분산 락 지원)"""
         holder = f"proc_{uuid.uuid4().hex[:8]}"
         
-        # 분산 락 획득 시도
-        if not await self.distributed_lock.acquire("news_collector", holder, settings.collect_lock_ttl):
-            # 로컬 락 체크 (단일 프로세스 환경)
-            if self._local_lock.locked():
-                logger.info("수집 스킵: 로컬 프로세스에서 실행 중")
+        # force=True일 때는 락 체크 완전 우회
+        if not force:
+            # 분산 락 획득 시도
+            if not await self.distributed_lock.acquire("news_collector", holder, settings.collect_lock_ttl):
+                # 로컬 락 체크 (단일 프로세스 환경)
+                if self._local_lock.locked():
+                    logger.info("수집 스킵: 로컬 프로세스에서 실행 중")
+                    return False
+                
+                logger.info("수집 스킵: 다른 노드에서 실행 중")
                 return False
-            
-            logger.info("수집 스킵: 다른 노드에서 실행 중")
-            return False
+        else:
+            logger.info("강제 수집: 분산 락 무시하고 실행")
         
         self._current_holder = holder
         logger.info("뉴스 처리 배치 시작", holder=holder)
