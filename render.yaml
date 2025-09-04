@@ -1,10 +1,23 @@
 services:
   - type: web
-    name: ai-news-platform
+    name: verachain-news-api
     env: python
-    plan: starter
-    buildCommand: cd news && python -m pip install --upgrade pip setuptools wheel && python -m pip install -r requirements-render.txt
-    startCommand: cd news && python -m uvicorn main:app --host 0.0.0.0 --port $PORT
-    autoDeploy: true
-    envVarGroups:
-      - ai-news-secrets
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: USE_MONGODB
+        value: true
+      - key: MONGODB_URI
+        sync: false  # 수동으로 설정
+      - key: OPENAI_API_KEY
+        sync: false  # 수동으로 설정
+      - key: INTERNAL_API_KEY
+        sync: false  # 수동으로 설정
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: DEBUG
+        value: false
+      - key: PYTHONPATH
+        value: /opt/render/project/src
