@@ -127,6 +127,7 @@ class PersonalizedArticle(BaseModel):
     content: str
     key_points: List[str]
     reading_time: str
+    disclaimer: Optional[str] = None
     cached: bool = False
 
 
