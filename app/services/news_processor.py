@@ -137,10 +137,20 @@ class NewsProcessor:
     """뉴스 처리 파이프라인"""
     
     def __init__(self, api_key: str):
+        from ..core.config import settings
+        
         self.db = Database()
         self.collector = NewsCollector()
         self.ai_engine = AIEngine(api_key)
-        self.distributed_lock = DistributedLock(self.db)
+        
+        # 단일 인스턴스 환경에서는 분산락 제거, 로컬락만 사용
+        self.use_distributed_lock = settings.environment == "production" and hasattr(settings, 'enable_distributed_locks') and settings.enable_distributed_locks
+        
+        if self.use_distributed_lock:
+            self.distributed_lock = DistributedLock(self.db)
+        else:
+            self.distributed_lock = None
+            
         self._local_lock = asyncio.Lock()
         self._current_holder = None
     
@@ -148,31 +158,38 @@ class NewsProcessor:
         """뉴스 수집 및 처리 (분산 락 지원)"""
         holder = f"proc_{uuid.uuid4().hex[:8]}"
         
-        # force=True일 때는 락 체크 완전 우회
+        # 락 체크 (분산락 사용 여부에 따라)
         if not force:
-            # 분산 락 획득 시도
-            if not await self.distributed_lock.acquire("news_collector", holder, settings.collect_lock_ttl):
-                # 로컬 락 체크 (단일 프로세스 환경)
-                if self._local_lock.locked():
-                    logger.info("수집 스킵: 로컬 프로세스에서 실행 중")
-                    return False
-                
-                logger.info("수집 스킵: 다른 노드에서 실행 중")
+            # 로컬 락 체크
+            if self._local_lock.locked():
+                logger.info("수집 스킵: 로컬 프로세스에서 실행 중")
                 return False
+            
+            # 분산락 체크 (사용하는 경우에만)
+            if self.use_distributed_lock and self.distributed_lock:
+                if not await self.distributed_lock.acquire("news_collector", holder, settings.collect_lock_ttl):
+                    logger.info("수집 스킵: 다른 노드에서 실행 중 (분산락)")
+                    return False
+                logger.info("뉴스 수집: 분산락 획득 완료")
+            else:
+                logger.info("뉴스 수집: 단일 인스턴스 모드 (분산락 비활성화)")
         else:
-            logger.info("강제 수집: 분산 락 무시하고 실행")
+            logger.info("강제 수집: 모든 락 무시하고 실행")
         
         self._current_holder = holder
-        logger.info("뉴스 처리 배치 시작", holder=holder)
+        logger.info("뉴스 처리 배치 시작", holder=holder, force=force)
         
         try:
             async with self._local_lock:
                 return await self._process_batch_internal(holder)
         finally:
-            # 분산 락 해제
-            if self._current_holder:
-                await self.distributed_lock.release("news_collector", self._current_holder)
-                self._current_holder = None
+            # 분산 락 해제 (사용하는 경우에만)
+            if not force and self._current_holder and self.use_distributed_lock and self.distributed_lock:
+                try:
+                    await self.distributed_lock.release("news_collector", self._current_holder)
+                except Exception as e:
+                    logger.warning(f"분산락 해제 실패 (무시): {e}")
+            self._current_holder = None
     
     async def _process_batch_internal(self, holder: str) -> bool:
         """내부 배치 처리 로직"""
