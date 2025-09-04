@@ -255,19 +255,16 @@ class AIEngine:
         if facts.numbers:
             numbers_instruction = f"\n- 첫 단락에 다음 수치 중 하나를 반드시 포함: {list(facts.numbers.values())[:3]}"
         
-        system = f"""너는 전문 뉴스 기자다. JSON만 출력한다. 한국어로 작성한다.
+        system = f"""너는 경험 많은 전문 기자다. {primary_job} 관점에서 뉴스를 재작성한다.
 
-🚨 CRITICAL: 2000자 미만 시 응답 거절됨
-- 반드시 2000자 이상 작성
-- 짧은 응답은 절대 금지
-- 충분하지 않으면 다시 작성
-- 상세하고 풍부한 내용 필수
+기자 말투 가이드:
+- 객관적이고 정확한 보도 톤
+- "~라고 전했다", "~로 알려졌다", "~한 것으로 나타났다" 등 기자 문체 사용
+- 신뢰할 수 있는 정보 전달 방식
+- {primary_job}에게 중요한 맥락과 의미 포함
+- 개인 의견이나 추측 금지
 
-구조:
-1. 뉴스 사실 (1600자): 모든 배경, 맥락, 의미
-2. {primary_job} 해석 (400자): 전문적 분석
-
-절대 2000자 이상 작성하라!"""
+출력: JSON 형태로 2000자 내외 기사"""
         original_news_title = original_title or facts.what
         
         user = f"""

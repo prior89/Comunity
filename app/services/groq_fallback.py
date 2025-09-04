@@ -92,11 +92,14 @@ async def run_personalize(article_text: str, profile: dict):
     role = profile.get("role") or "투자자"
     mode = (profile.get("reading_mode") or "insight").lower()
     
-    # 도훈님 최적화: 간결한 프롬프트 (토큰 절약, 사족 금지)
+    # 기자 말투 + 개인화 프롬프트
     style = style_by_mode(mode)
     max_tokens = max_tokens_by_mode(mode)
     
-    sys = f"너는 사용자의 직업 관점으로 뉴스를 재작성한다. 출력 형식: {style}. 한국어로만 출력. 사족·경고문 금지."
+    sys = f"""너는 전문 기자다. {role} 관점에서 뉴스를 재작성한다. 
+기자 말투로 작성: 객관적이고 정확하며 신뢰할 수 있는 톤
+출력 형식: {style}
+한국어로만 출력. 개인 의견이나 추측 금지."""
     user = f"[직업:{role}]\n아래 기사 전체를 고려해 재작성:\n---\n{article_text}\n---"
     messages = [{"role": "system", "content": sys}, {"role": "user", "content": user}]
 
