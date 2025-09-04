@@ -207,12 +207,13 @@ class NewsProcessor:
             last_heartbeat = monotonic()
             
             for idx, article in enumerate(articles[:settings.articles_per_batch]):
-                # 하트비트 업데이트 (주기적으로)
+                # 하트비트 업데이트 (주기적으로, 분산락 사용하는 경우에만)
                 now = monotonic()
                 if idx > 0 and (idx % 2 == 0 or now - last_heartbeat > 30):
-                    if not await self.distributed_lock.update_heartbeat("news_collector", holder):
-                        logger.error("락 하트비트 실패, 처리 중단")
-                        break
+                    if self.use_distributed_lock and self.distributed_lock:
+                        if not await self.distributed_lock.update_heartbeat("news_collector", holder):
+                            logger.error("락 하트비트 실패, 처리 중단")
+                            break
                     last_heartbeat = now
                 
                 try:
