@@ -7,6 +7,7 @@ import hashlib
 from time import monotonic
 from typing import Dict, Any, Optional
 from dataclasses import asdict
+from datetime import datetime
 
 from ..models.database import Database
 from ..models.schemas import UserProfile, ExtractedFacts
@@ -257,10 +258,28 @@ class NewsProcessor:
     async def generate_personalized(self, article_id: str, user_id: str) -> Dict[str, Any]:
         """개인화 콘텐츠 생성 (캐시 최적화)"""
         
-        # 사용자 프로필 조회
+        # 사용자 프로필 조회 (없으면 스텁 생성)
         profile = self.db.get_user_profile(user_id)
         if not profile:
-            raise ValueError("사용자 프로필을 찾을 수 없습니다")
+            # 스텁 프로필 생성 (절대 실패하지 않음)
+            from ..models.schemas import UserProfile
+            profile = UserProfile(
+                user_id=user_id,
+                age=30,
+                gender="other", 
+                location="Seoul",
+                job_categories=["투자자"],
+                interests_finance=["투자", "경제"],
+                interests_lifestyle=["뉴스"],
+                interests_hobby=["독서"],
+                interests_tech=["AI"],
+                work_style="commute",
+                family_status="single",
+                living_situation="alone",
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            logger.info("스텁 프로필 생성", user_id=user_id[:10])
         
         # 프로필 해시를 포함한 캐시 키 생성 (reading_mode 제거)
         profile_data = {

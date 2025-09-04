@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     
     # Groq API 설정
     groq_api_key: Optional[str] = None
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_model: str = "llama-3.1-70b-versatile"
     
     # AI 제공자 선택
     ai_provider: str = "openai"  # openai 또는 groq
