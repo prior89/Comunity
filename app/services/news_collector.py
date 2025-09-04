@@ -28,7 +28,21 @@ class NewsCollector:
                 'url': 'https://www.yonhapnewstv.co.kr/browse/feed/', 
                 'category': 'general'
             },
-            # 추가 소스들을 여기에 정의
+            {
+                'name': 'SBS뉴스',
+                'url': 'https://news.sbs.co.kr/news/SectionRssFeed.do?sectionId=01',
+                'category': 'general'
+            },
+            {
+                'name': 'KBS뉴스', 
+                'url': 'http://world.kbs.co.kr/rss/rss_news.htm?lang=k',
+                'category': 'general'
+            },
+            {
+                'name': 'MBC뉴스',
+                'url': 'https://imnews.imbc.com/rss/news/news_00.xml', 
+                'category': 'general'
+            }
         ]
         self.session_timeout = aiohttp.ClientTimeout(total=settings.collect_timeout)
     
@@ -169,12 +183,24 @@ class NewsCollector:
                     continue
                 all_articles.extend(result)
             
-            # 중복 제거 (URL 기준)
+            # 중복 제거 (URL 기준 + DB 기존 기사 체크)
+            from ..api.dependencies import get_database, get_mongo_database
+            
+            db = get_mongo_database() or get_database()
             seen_urls = set()
             unique_articles = []
+            
             for article in all_articles:
-                if article['url'] not in seen_urls:
-                    seen_urls.add(article['url'])
+                url = article['url']
+                if url not in seen_urls:
+                    # 데이터베이스에서 기존 기사 체크
+                    if hasattr(db, 'get_article_by_url'):
+                        existing = db.get_article_by_url(url)
+                        if existing:
+                            logger.debug("기존 기사 스킵", title=article.get('title', '')[:50])
+                            continue
+                    
+                    seen_urls.add(url)
                     unique_articles.append(article)
             
             logger.info("뉴스 수집 완료", 
