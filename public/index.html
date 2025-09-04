@@ -96,7 +96,7 @@
                 id="autoDemoBtn"
                 class="w-full px-4 py-3 bg-blue-500 hover:bg-blue-400 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                투자자 맞춤 AI 분석 시작
+                개인화 맞춤 AI 분석 시작
               </button>
             </div>
 
@@ -291,8 +291,8 @@
         btn.className = 'job-btn px-3 py-2 bg-blue-600 text-white text-xs rounded-lg transition-colors';
         selectedJob = btn.getAttribute('data-job');
         
-        // 버튼 텍스트 업데이트
-        setText('autoDemoBtn', selectedJob + ' 맞춤 AI 분석 시작');
+        // 버튼 텍스트 업데이트 (개인화 맞춤으로 통일)
+        setText('autoDemoBtn', '개인화 맞춤 AI 분석 시작');
         setText('jobDisplay', selectedJob);
       });
     });
@@ -468,7 +468,7 @@
               }
               
               autoDemoBtn.disabled = false;
-              autoDemoBtn.textContent = selectedJob + ' 맞춤 AI 분석 시작';
+              autoDemoBtn.textContent = '개인화 맞춤 AI 분석 시작';
               
             }, 2000); // 2초 후 개인화
           }
@@ -477,7 +477,7 @@
       } catch (error) {
         console.error('자동 분석 오류:', error);
         autoDemoBtn.disabled = false;
-        autoDemoBtn.textContent = selectedJob + ' 맞춤 AI 분석 시작';
+        autoDemoBtn.textContent = '개인화 맞춤 AI 분석 시작';
         alert('분석 중 오류가 발생했습니다.');
       }
     });
