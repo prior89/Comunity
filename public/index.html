@@ -232,11 +232,21 @@
         return await r.json();
       } catch (e) {
         console.warn('[profiles] fallback to default:', e.message);
+        // 프론트엔드에서도 직업별 fallback 생성
+        let fallback_job = '일반';
+        if (payload.user_id && payload.user_id.includes('investor')) {
+          fallback_job = '투자자';
+        } else if (payload.user_id && payload.user_id.includes('entrepreneur')) {
+          fallback_job = '사업가';
+        } else if (payload.user_id && payload.user_id.includes('worker')) {
+          fallback_job = '직장인';
+        }
+        
         return { 
-          user_id: 'guest', 
+          user_id: payload.user_id || 'guest', 
           reading_mode: 'insight', 
           interests: [],
-          job_categories: [payload.job_categories?.[0] || '일반']
+          job_categories: [fallback_job]
         };
       }
     }
