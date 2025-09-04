@@ -78,10 +78,12 @@ async def personalize_article(
                **request_info)
     
     try:
+        logger.info("개인화 시작: processor.generate_personalized 호출")
         personalized = await processor.generate_personalized(
             personalize_request.article_id, 
             personalize_request.user_id
         )
+        logger.info("개인화 성공: 응답 데이터 생성 완료")
         
         # ETag 생성 및 조건부 응답
         body = json.dumps(personalized, ensure_ascii=False, default=str).encode("utf-8")
@@ -110,11 +112,12 @@ async def personalize_article(
         return response
         
     except ValueError as e:
-        logger.warning("개인화 실패", 
+        logger.warning("개인화 실패 (ValueError)", 
                       error=str(e),
                       article_id=personalize_request.article_id,
                       user_id=personalize_request.user_id[:10])
-        raise HTTPException(status_code=404, detail=str(e))
+        # 404 대신 400으로 변경 (클라이언트 오류)
+        raise HTTPException(status_code=400, detail=f"개인화 실패: {str(e)}")
     except Exception as e:
         logger.error("개인화 처리 오류", 
                     error=str(e),
