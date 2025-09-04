@@ -2,20 +2,26 @@
 .env
 *.env
 KEY.txt
-*.db
+*.key
 
-# 개인정보 문서들  
+# 데이터베이스  
+*.db
+*.sqlite
+
+# 개인정보 문서들
 사업계획서*
 신용보증기금*
 교육사업.pdf
 보정안.pdf
 
-# 임시 파일들
-*.tmp
-*.log
+# Python
 __pycache__/
+*.py[cod]
 *.pyc
+*.so
+*.log
+*.tmp
 
-# IDE 설정
+# 개발 도구
 .vscode/
 .idea/
