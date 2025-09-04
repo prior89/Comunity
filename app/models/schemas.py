@@ -141,9 +141,11 @@ class PersonalizedArticle(BaseModel):
     """개인화된 기사 응답"""
     title: str
     content: str
+    personalized_article: str  # 프론트엔드용 통일 키
     key_points: List[str]
     reading_time: str
     disclaimer: Optional[str] = None
+    provider: Optional[str] = None
     cached: bool = False
 
 

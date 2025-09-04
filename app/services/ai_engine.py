@@ -358,12 +358,15 @@ JSON:
                        original_title=original_news_title,
                        user_id=profile.user_id[:10])
             
+            personalized_content = obj.get("content") or ""
             return {
                 "title": original_news_title,  # 강제로 원본 제목 사용
-                "content": (obj.get("content") or ""),  # 제한 완전 제거
+                "content": personalized_content,
+                "personalized_article": personalized_content,  # 프론트엔드용 통일 키
                 "key_points": [p[:100] for p in (obj.get("key_points") or [])[:3]],
                 "reading_time": obj.get("reading_time") or guide["time"],
-                "disclaimer": obj.get("disclaimer") or f"본 분석은 {primary_job} 관점에서의 참고용 정보이며, 실제 결정은 개인 판단과 책임입니다."
+                "disclaimer": obj.get("disclaimer") or f"본 분석은 {primary_job} 관점에서의 참고용 정보이며, 실제 결정은 개인 판단과 책임입니다.",
+                "provider": self.provider
             }
             
         except Exception as e:

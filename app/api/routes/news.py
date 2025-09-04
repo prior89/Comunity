@@ -22,7 +22,6 @@ async def refresh_news(
     background_tasks: BackgroundTasks,
     request: Request,
     force: bool = False,
-    _: None = Depends(require_write_permission),
     processor: NewsProcessor = Depends(get_news_processor),
     request_info: Dict[str, str] = Depends(log_request_info)
 ):
