@@ -80,8 +80,8 @@ class UserProfileCreate(StrictModel):
     reading_mode: Literal["quick", "standard", "deep", "detailed"] = "standard"
 
 
-class UserProfileCreateRequest(StrictModel):
-    """프로필 생성 요청 (user_id 포함)"""
+class UserProfileCreateRequest(BaseModel):
+    """프로필 생성 요청 (user_id 포함, 한글 지원)"""
     user_id: str = Field(max_length=64)
     age: int = Field(ge=20, le=70)
     gender: Literal["male", "female", "other"]
@@ -100,8 +100,8 @@ class UserProfileCreateRequest(StrictModel):
     reading_mode: Literal["quick", "standard", "deep", "detailed"] = "standard"
 
 
-class PersonalizeRequest(StrictModel):
-    """개인화 요청"""
+class PersonalizeRequest(BaseModel):
+    """개인화 요청 (한글 사용자 ID 지원)"""
     article_id: str = Field(max_length=50)
     user_id: str = Field(max_length=64)
 
