@@ -14,6 +14,22 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "").strip()
 GROQ_MODEL_CANDIDATES = [m.strip() for m in os.getenv("GROQ_MODEL_CANDIDATES", "").split(",") if m.strip()]
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
+def max_tokens_by_mode(mode: str) -> int:
+    """reading_mode별 최적 토큰 수 - 도훈님 최적화"""
+    return {
+        "insight": 800,
+        "brief": 400,
+        "bullet": 300,
+    }.get(mode.lower(), 800)
+
+def style_by_mode(mode: str) -> str:
+    """reading_mode별 출력 스타일 정의"""
+    return {
+        "insight": "5~8문단 심층 기사",
+        "brief": "4~6문장 간결 기사", 
+        "bullet": "핵심 포인트 6~8개",
+    }.get(mode.lower(), "5~8문단 심층 기사")
+
 def _is_model_decommissioned(e: Exception) -> bool:
     """모델 폐기/지원 중단 에러 감지"""
     s = str(e).lower()
@@ -76,19 +92,16 @@ async def run_personalize(article_text: str, profile: dict):
     role = profile.get("role") or "투자자"
     mode = (profile.get("reading_mode") or "insight").lower()
     
-    # reading_mode 기반 스타일 결정
-    style = {
-        "insight": "맥락과 함의까지 담은 5~8문단 심층 기사",
-        "brief": "핵심만 4~6문장 간결 기사", 
-        "bullet": "핵심 포인트 6~8개 불릿",
-    }.get(mode, "맥락과 함의까지 담은 5~8문단 심층 기사")
-
-    sys = f"너는 사용자의 직업 관점으로 뉴스를 재작성한다. 출력 형식: {style}. 한국어로만 출력."
-    user = f"[직업:{role}]\n아래 기사를 재작성:\n---\n{article_text}\n---"
+    # 도훈님 최적화: 간결한 프롬프트 (토큰 절약, 사족 금지)
+    style = style_by_mode(mode)
+    max_tokens = max_tokens_by_mode(mode)
+    
+    sys = f"너는 사용자의 직업 관점으로 뉴스를 재작성한다. 출력 형식: {style}. 한국어로만 출력. 사족·경고문 금지."
+    user = f"[직업:{role}]\n아래 기사 전체를 고려해 재작성:\n---\n{article_text}\n---"
     messages = [{"role": "system", "content": sys}, {"role": "user", "content": user}]
 
-    # 1) Groq 우선 (자동 폴백 시스템)
-    groq_result, groq_err = await _try_groq(messages)
+    # 1) Groq 우선 (자동 폴백 시스템, 최적화된 토큰 수)
+    groq_result, groq_err = await _try_groq(messages, max_tokens=max_tokens)
     if groq_result:
         return groq_result
 
@@ -99,7 +112,8 @@ async def run_personalize(article_text: str, profile: dict):
         r = await oai.chat.completions.create(
             model=OPENAI_MODEL,
             messages=messages,
-            temperature=0.2
+            temperature=0.2,
+            max_tokens=max_tokens  # 최적화된 토큰 수
         )
         txt = (r.choices[0].message.content or "").strip() or f"(폴백 본문; groq 실패: {str(groq_err)[:120]})"
         
