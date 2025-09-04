@@ -393,7 +393,10 @@
                 document.getElementById('totalTime').textContent = totalTime;
                 document.getElementById('transformRate').textContent = '88';
                 
-                // 실제 API 응답 사용
+                // 실제 API 응답 사용 (디버깅)
+                console.log("API Response:", result);
+                console.log("Content field:", result.content);
+                
                 const content = result.content || "개인화된 기사 생성 중...";
                 const keyPoints = result.key_points || [];
                 const readingTime = result.reading_time || "2분";
