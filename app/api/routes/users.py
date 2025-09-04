@@ -21,7 +21,7 @@ async def create_user_profile(
     db: Database = Depends(get_database),
     request_info: Dict[str, str] = Depends(log_request_info)
 ):
-    """사용자 프로필 생성 (방어적 구현 - 절대 죽지 않음)"""
+    """사용자 프로필 생성 (방어적 구현 - 절대 503 금지)"""
     
     logger.info("프로필 생성 요청", 
                user_id=profile_request.user_id[:10],

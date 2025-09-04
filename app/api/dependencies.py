@@ -85,30 +85,31 @@ def log_request_info(request: Request) -> Dict[str, str]:
 def verify_internal_key(
     request: Request,
     authorization: str = Header(default=None),
-    x_internal_api_key: str = Header(default=None, alias="X-Internal-Api-Key"),
+    x_internal_api_key: str = Header(default=None),
+    x_api_key: str = Header(default=None),
 ):
     """유연한 내부키 검증 - 다양한 헤더 방식 지원"""
-    expected = getattr(settings, 'internal_api_key', None)
-    if not expected or not expected.strip():
-        # 키가 설정 안 되어 있으면 스킵 (데모 편의)
+    expected = (getattr(settings, 'internal_api_key', None) or "").strip().strip('"').strip("'")
+    if not expected:
+        print("[auth] no INTERNAL_API_KEY set -> allow")
         return True
 
-    expected = expected.strip()
-    got = None
+    def clean(v): 
+        return (v or "").strip().strip('"').strip("'")
     
-    if x_internal_api_key:
-        got = x_internal_api_key.strip()
+    got = None
+    if x_internal_api_key: 
+        got = clean(x_internal_api_key)
     elif authorization and authorization.lower().startswith("bearer "):
-        got = authorization.split(" ", 1)[1].strip()
-    else:
-        # query parameter 또는 다른 헤더에서도 확인
-        got = (request.query_params.get("key") or 
-               request.headers.get("X-API-Key") or "").strip()
+        got = clean(authorization.split(" ", 1)[1])
+    elif x_api_key: 
+        got = clean(x_api_key)
+    elif request.query_params.get("key"): 
+        got = clean(request.query_params["key"])
 
     if got != expected:
-        logger.warning("내부키 검증 실패", 
-                      expected_length=len(expected),
-                      got_length=len(got) if got else 0)
+        print(f"[auth] fail: expected_len={len(expected)} got_len={len(got or '')}")
         raise HTTPException(status_code=401, detail="Unauthorized")
     
+    print(f"[auth] success: verified internal key")
     return True

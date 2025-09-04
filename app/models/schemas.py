@@ -113,13 +113,20 @@ class PersonalizeRequest(BaseModel):
     @classmethod
     def coerce_keys(cls, v):
         """다양한 프런트 키들을 표준 키로 변환"""
-        if isinstance(v, dict):
-            v = dict(v)
-            # article_id 별칭들
-            v.setdefault("article_id", v.get("article") or v.get("content") or v.get("text"))
-            # user_id 별칭들  
-            v.setdefault("user_id", v.get("role") or v.get("persona") or v.get("job"))
-        return v
+        try:
+            if isinstance(v, dict):
+                v = dict(v)
+                # article_id가 없으면 다른 키에서 찾기
+                if 'article_id' not in v or not v['article_id']:
+                    v['article_id'] = v.get("article") or v.get("content") or v.get("text") or ""
+                # user_id가 없으면 다른 키에서 찾기  
+                if 'user_id' not in v or not v['user_id']:
+                    v['user_id'] = v.get("role") or v.get("persona") or v.get("job") or ""
+            return v
+        except Exception as e:
+            # validator 실패해도 원본 데이터 반환
+            print(f"PersonalizeRequest validator error: {e}")
+            return v
 
 
 class ActivityLog(StrictModel):

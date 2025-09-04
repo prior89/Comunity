@@ -63,14 +63,14 @@ async def test_endpoint():
     """테스트용 단순 엔드포인트"""
     return {"message": "테스트 성공", "status": "ok"}
 
-@router.post("/personalize", response_model=PersonalizedArticle)
+@router.post("/personalize")
 async def personalize_article(
     personalize_request: PersonalizeRequest,
     request: Request,
     processor: NewsProcessor = Depends(get_news_processor),
     request_info: Dict[str, str] = Depends(log_request_info)
 ):
-    """기사 개인화 (ETag 캐시 지원)"""
+    """기사 개인화 (완전 방어형 - 절대 500 금지)"""
     
     logger.info("개인화 요청", 
                article_id=personalize_request.article_id, 
@@ -85,45 +85,34 @@ async def personalize_article(
         )
         logger.info("개인화 성공: 응답 데이터 생성 완료")
         
-        # ETag 생성 및 조건부 응답
-        body = json.dumps(personalized, ensure_ascii=False, default=str).encode("utf-8")
-        etag = make_etag(body)
+        # 성공 시 정상 응답
+        return {
+            "ok": True,
+            "provider": personalized.get("provider", "unknown"),
+            "personalized_article": personalized.get("personalized_article") or personalized.get("content", ""),
+            "title": personalized.get("title", ""),
+            "key_points": personalized.get("key_points", []),
+            "reading_time": personalized.get("reading_time", "2분"),
+            "is_fallback": False
+        }
         
-        # If-None-Match 헤더 확인
-        if_none_match = request.headers.get("If-None-Match")
-        if if_none_match and f'W/"{etag}"' in if_none_match:
-            logger.debug("개인화 ETag 매치 - 304 응답", 
-                        article_id=personalize_request.article_id,
-                        user_id=personalize_request.user_id[:10])
-            # RFC 7232: 304 응답에 ETag 헤더 포함 필수
-            return Response(status_code=304, headers={"ETag": f'W/"{etag}"'})
-        
-        # 응답 생성 및 캐시 헤더 적용
-        response = JSONResponse(personalized)
-        response.headers["ETag"] = f'W/"{etag}"'
-        response.headers["Cache-Control"] = "public, max-age=300"
-        
-        logger.info("개인화 완료", 
-                   article_id=personalize_request.article_id,
-                   user_id=personalize_request.user_id[:10],
-                   cached=personalized.get('cached', False),
-                   etag=etag[:8])
-        
-        return response
-        
-    except ValueError as e:
-        logger.warning("개인화 실패 (ValueError)", 
-                      error=str(e),
-                      article_id=personalize_request.article_id,
-                      user_id=personalize_request.user_id[:10])
-        # 404 대신 400으로 변경 (클라이언트 오류)
-        raise HTTPException(status_code=400, detail=f"개인화 실패: {str(e)}")
     except Exception as e:
-        logger.error("개인화 처리 오류", 
+        logger.error("개인화 처리 실패", 
                     error=str(e),
                     article_id=personalize_request.article_id,
                     user_id=personalize_request.user_id[:10])
-        raise HTTPException(status_code=500, detail="개인화 처리 중 오류가 발생했습니다")
+        
+        # 도훈님 방어 패턴: 500 대신 200 + 스텁 응답
+        print(f"[personalize] failed: {type(e).__name__} {e}")
+        return {
+            "ok": False,
+            "provider": "stub",
+            "personalized_article": f"개인화 처리 중 오류가 발생했습니다: {str(e)[:200]}",
+            "title": "뉴스 기사",
+            "key_points": ["처리 중 오류 발생"],
+            "reading_time": "2분",
+            "is_fallback": True
+        }
 
 
 @router.get("/articles")
