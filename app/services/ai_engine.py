@@ -28,6 +28,15 @@ class AIEngine:
             self.client = AsyncGroq(api_key=settings.groq_api_key)
             self.model = settings.groq_model
             self.provider = "groq"
+        elif settings.ai_provider == "dual":
+            # Dual 모드: Groq와 OpenAI 둘 다 초기화
+            if not settings.groq_api_key or not api_key:
+                raise RuntimeError("Dual 모드에서는 GROQ_API_KEY와 OPENAI_API_KEY가 모두 필요합니다.")
+            self.groq_client = AsyncGroq(api_key=settings.groq_api_key)
+            self.openai_client = AsyncOpenAI(api_key=api_key, timeout=float(settings.openai_timeout), max_retries=0)
+            self.client = self.groq_client  # 기본은 Groq
+            self.model = settings.groq_model
+            self.provider = "dual"
         else:
             if not api_key or api_key == "test-key":
                 raise RuntimeError("OPENAI_API_KEY가 설정되어 있지 않습니다.")
@@ -295,15 +304,38 @@ JSON:
 """
         
         async def _call():
-            return await self._call_with_schema(
-                messages=[
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user}
-                ],
-                schema={"name": "PersonalizedArticle", "schema": REWRITE_SCHEMA},
-                temperature=0.6,
-                max_tokens=8000  # 2000자 목표로 대폭 증가
-            )
+            # dual 모드에서는 Groq 먼저 시도, 실패하면 OpenAI
+            if self.provider == "dual":
+                try:
+                    # Groq 시도
+                    self.client = self.groq_client
+                    self.model = settings.groq_model
+                    logger.info("개인화 시도: Groq 우선")
+                    return await self._call_with_schema(
+                        messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+                        schema={"name": "PersonalizedArticle", "schema": REWRITE_SCHEMA},
+                        temperature=0.6,
+                        max_tokens=8000
+                    )
+                except Exception as e:
+                    # OpenAI로 fallback
+                    logger.warning(f"Groq 실패, OpenAI 대체: {e}")
+                    self.client = self.openai_client
+                    self.model = settings.openai_model
+                    return await self._call_with_schema(
+                        messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+                        schema={"name": "PersonalizedArticle", "schema": REWRITE_SCHEMA},
+                        temperature=0.6,
+                        max_tokens=8000
+                    )
+            else:
+                # 단일 모드
+                return await self._call_with_schema(
+                    messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+                    schema={"name": "PersonalizedArticle", "schema": REWRITE_SCHEMA},
+                    temperature=0.6,
+                    max_tokens=8000
+                )
         
         try:
             response = await with_retry(_call, retries=settings.openai_retries, base_delay=1.0)
