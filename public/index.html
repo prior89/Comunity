@@ -360,34 +360,41 @@
                 
                 if (personalizeResponse.ok) {
                   const personalizedData = await personalizeResponse.json();
+                  console.log("개인화 API 성공:", personalizedData);
                 
-                // 완전 완료
-                document.getElementById('step3-dot').className = 'w-2 h-2 bg-emerald-400 rounded-full';
-                document.getElementById('personalizedDot').className = 'w-3 h-3 bg-emerald-400 rounded-full';
-                
-                const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
-                document.getElementById('totalTime').textContent = totalTime;
-                
-                const transformRate = Math.min(98, Math.floor(Math.random() * 10) + 85);
-                document.getElementById('transformRate').textContent = transformRate;
-                
-                document.getElementById('personalizedResult').innerHTML = `
-                  <div class="space-y-3">
-                    <h5 class="font-semibold text-emerald-300">${personalizedData.title}</h5>
-                    <div class="text-slate-300 leading-relaxed text-xs">
-                      ${(personalizedData.content || '').substring(0, 350)}...
+                  // 완전 완료
+                  document.getElementById('step3-dot').className = 'w-2 h-2 bg-emerald-400 rounded-full';
+                  document.getElementById('personalizedDot').className = 'w-3 h-3 bg-emerald-400 rounded-full';
+                  
+                  const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+                  document.getElementById('totalTime').textContent = totalTime;
+                  
+                  const transformRate = Math.min(98, Math.floor(Math.random() * 10) + 85);
+                  document.getElementById('transformRate').textContent = transformRate;
+                  
+                  // 도훈님 제안: personalized_article 키로 통일
+                  const content = personalizedData.personalized_article || personalizedData.content || "개인화된 기사 생성 중...";
+                  const keyPoints = personalizedData.key_points || [];
+                  const readingTime = personalizedData.reading_time || "2분";
+                  const provider = personalizedData.provider || "unknown";
+                  
+                  document.getElementById('personalizedResult').innerHTML = `
+                    <div class="space-y-3">
+                      <h5 class="font-semibold text-emerald-300">개인화된 기사</h5>
+                      <div class="text-slate-300 leading-relaxed text-sm">
+                        ${content}
+                      </div>
+                      ${keyPoints.length > 0 ? `
+                        <div class="bg-slate-700/30 p-2 rounded-lg">
+                          <div class="text-xs text-slate-400 mb-1">핵심 포인트:</div>
+                          ${keyPoints.map(point => `<div class="text-xs text-emerald-300">• ${point}</div>`).join('')}
+                        </div>
+                      ` : ''}
+                      <div class="text-xs text-slate-500">
+                        읽기시간: ${readingTime} | 파이프라인: ${provider}
+                      </div>
                     </div>
-                    <div class="bg-slate-700/30 p-2 rounded-lg">
-                      <div class="text-xs text-slate-400 mb-1">${selectedJob} 맞춤 핵심:</div>
-                      ${personalizedData.key_points ? personalizedData.key_points.map(point => 
-                        `<div class="text-xs text-emerald-300">• ${point}</div>`
-                      ).join('') : ''}
-                    </div>
-                    <div class="text-xs text-slate-500">
-                      읽기시간: ${personalizedData.reading_time} | 파이프라인: ${personalizedData.pipeline || 'dual_ai'}
-                    </div>
-                  </div>
-                `;
+                  `;
                 } else {
                   throw new Error('개인화 API 응답 오류: ' + personalizeResponse.status);
                 }

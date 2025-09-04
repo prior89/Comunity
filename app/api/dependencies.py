@@ -2,7 +2,7 @@
 FastAPI 의존성 관리
 """
 from typing import Optional, Dict
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Request, Header
 
 from ..core.security import require_api_key, get_client_ip
 from ..core.logging import get_logger
@@ -80,3 +80,35 @@ def log_request_info(request: Request) -> Dict[str, str]:
         "user_agent": request.headers.get("User-Agent", "")[:100]
     }
     return info
+
+
+def verify_internal_key(
+    request: Request,
+    authorization: str = Header(default=None),
+    x_internal_api_key: str = Header(default=None, alias="X-Internal-Api-Key"),
+):
+    """유연한 내부키 검증 - 다양한 헤더 방식 지원"""
+    expected = getattr(settings, 'internal_api_key', None)
+    if not expected or not expected.strip():
+        # 키가 설정 안 되어 있으면 스킵 (데모 편의)
+        return True
+
+    expected = expected.strip()
+    got = None
+    
+    if x_internal_api_key:
+        got = x_internal_api_key.strip()
+    elif authorization and authorization.lower().startswith("bearer "):
+        got = authorization.split(" ", 1)[1].strip()
+    else:
+        # query parameter 또는 다른 헤더에서도 확인
+        got = (request.query_params.get("key") or 
+               request.headers.get("X-API-Key") or "").strip()
+
+    if got != expected:
+        logger.warning("내부키 검증 실패", 
+                      expected_length=len(expected),
+                      got_length=len(got) if got else 0)
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    return True

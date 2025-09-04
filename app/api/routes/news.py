@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request,
 from fastapi.responses import JSONResponse
 
 from ...models.schemas import PersonalizeRequest, PersonalizedArticle
-from ...api.dependencies import get_news_processor, require_write_permission, log_request_info
+from ...api.dependencies import get_news_processor, verify_internal_key, log_request_info
 from ...services.news_processor import NewsProcessor
 from ...core.logging import get_logger
 from ...utils.helpers import make_etag, apply_cache_headers
@@ -22,6 +22,7 @@ async def refresh_news(
     background_tasks: BackgroundTasks,
     request: Request,
     force: bool = False,
+    _: bool = Depends(verify_internal_key),
     processor: NewsProcessor = Depends(get_news_processor),
     request_info: Dict[str, str] = Depends(log_request_info)
 ):

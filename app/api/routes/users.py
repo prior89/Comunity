@@ -69,21 +69,31 @@ async def create_user_profile(
                     error=str(e),
                     user_id=profile_request.user_id[:10])
         
-        # 방어적 구현: 실패해도 200 JSON 반환 (플로우 계속 진행)
+        # 방어적 구현: 절대 503으로 죽지 않음 - 스텁 반환으로 워크플로우 계속
         stub_profile = {
             "user_id": profile_request.user_id,
             "age": getattr(profile_request, 'age', 30),
             "gender": getattr(profile_request, 'gender', 'other'),
+            "location": getattr(profile_request, 'location', 'Seoul'),
             "job_categories": getattr(profile_request, 'job_categories', ['일반']),
             "interests_finance": getattr(profile_request, 'interests_finance', ['일반']),
+            "interests_lifestyle": getattr(profile_request, 'interests_lifestyle', ['일반']),
+            "interests_hobby": getattr(profile_request, 'interests_hobby', ['일반']),
+            "interests_tech": getattr(profile_request, 'interests_tech', ['일반']),
+            "work_style": getattr(profile_request, 'work_style', 'commute'),
+            "family_status": getattr(profile_request, 'family_status', 'single'),
+            "living_situation": getattr(profile_request, 'living_situation', 'alone'),
+            "created_at": now_kst(),
+            "updated_at": now_kst()
         }
+        
+        logger.info("스텁 프로필로 계속 진행", user_id=profile_request.user_id[:10])
         
         return {
             "ok": False,
-            "profile": stub_profile,
+            "profile": stub_profile, 
             "provider": "stub",
-            "reason": str(e)[:300],
-            "message": "프로필 생성 실패, 스텁으로 진행"
+            "reason": str(e)[:300]
         }
 
 

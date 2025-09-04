@@ -122,5 +122,29 @@ uvicorn main:app --app-dir news --host 0.0.0.0 --port $PORT
 4. 🔄 Start Command 수정 필요: `--app-dir news` 추가
 5. 🔄 Environment Group `ai-news-secrets` 설정 필요
 
+### 구조 정리 및 CORS 에러 해결 (16:20)
+**진전**: 
+- ✅ 모듈 import 문제 해결됨 (main.py → app 모듈 정상 인식)
+- ✅ CORS_ORIGINS 파싱 에러 해결 (List[str] → str 타입 변경)
+- ✅ 리포지토리 구조 정리 완료
+
+**현재 상태**:
+```
+├── main.py              # FastAPI 진입점 (14242 bytes, v3.0.8)
+├── app/                # 애플리케이션 코드 (모든 모듈 보존)
+├── render.yaml         # 환경변수 설정 포함
+└── requirements.txt    # 의존성 관리
+```
+
+**마지막 남은 문제**: 환경변수 수동 설정 필요
+- OPENAI_API_KEY (render.yaml에 sync: false)
+- MONGODB_URI (render.yaml에 sync: false)  
+- GROQ_API_KEY (누락)
+- AI_PROVIDER (누락)
+
+### 다음 단계
+1. Render 대시보드에서 수동 환경변수 설정
+2. 배포 → 서비스 정상 작동 예상
+
 ---
-*최종 업데이트: 2025-09-04 05:35*
+*최종 업데이트: 2025-09-04 16:20*
