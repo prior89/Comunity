@@ -269,7 +269,14 @@
         document.getElementById('step1-dot').className = 'w-2 h-2 bg-blue-400 rounded-full animate-pulse';
         document.getElementById('crawlingResult').innerHTML = '<div class="animate-pulse text-blue-400">최신 뉴스를 수집하고 있습니다...</div>';
         
-        await fetch('/api/news/refresh', { method: 'POST' });
+        await fetch('/api/news/refresh?force=1', { 
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer railway-internal-key-123',
+            'X-Internal-Api-Key': 'railway-internal-key-123'
+          }
+        });
         
         setTimeout(async () => {
           // 최신 기사 조회 (팩트 포함)

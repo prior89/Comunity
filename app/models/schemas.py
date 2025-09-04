@@ -4,7 +4,7 @@ Pydantic 스키마 정의
 from datetime import datetime
 from typing import Dict, List, Optional, Literal
 from dataclasses import dataclass
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # Pydantic 버전 호환성
@@ -103,11 +103,23 @@ class UserProfileCreateRequest(BaseModel):
 
 
 class PersonalizeRequest(BaseModel):
-    """개인화 요청 (한글 사용자 ID 지원)"""
-    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
+    """개인화 요청 (유연한 스키마 - 다양한 프론트 키 지원)"""
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True, populate_by_name=True)
     
-    article_id: str = Field(max_length=50)
-    user_id: str = Field(max_length=64)
+    article_id: str = Field(max_length=50, alias="article")
+    user_id: str = Field(max_length=64, alias="role")
+    
+    @model_validator(mode="before")
+    @classmethod
+    def coerce_keys(cls, v):
+        """다양한 프런트 키들을 표준 키로 변환"""
+        if isinstance(v, dict):
+            v = dict(v)
+            # article_id 별칭들
+            v.setdefault("article_id", v.get("article") or v.get("content") or v.get("text"))
+            # user_id 별칭들  
+            v.setdefault("user_id", v.get("role") or v.get("persona") or v.get("job"))
+        return v
 
 
 class ActivityLog(StrictModel):
