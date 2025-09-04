@@ -21,7 +21,7 @@ async def create_user_profile(
     db: Database = Depends(get_database),
     request_info: Dict[str, str] = Depends(log_request_info)
 ):
-    """사용자 프로필 생성"""
+    """사용자 프로필 생성 (방어적 구현 - 절대 죽지 않음)"""
     
     logger.info("프로필 생성 요청", 
                user_id=profile_request.user_id[:10],
@@ -68,7 +68,23 @@ async def create_user_profile(
         logger.error("프로필 생성 실패", 
                     error=str(e),
                     user_id=profile_request.user_id[:10])
-        raise HTTPException(status_code=500, detail="프로필 생성 중 오류가 발생했습니다")
+        
+        # 방어적 구현: 실패해도 200 JSON 반환 (플로우 계속 진행)
+        stub_profile = {
+            "user_id": profile_request.user_id,
+            "age": getattr(profile_request, 'age', 30),
+            "gender": getattr(profile_request, 'gender', 'other'),
+            "job_categories": getattr(profile_request, 'job_categories', ['일반']),
+            "interests_finance": getattr(profile_request, 'interests_finance', ['일반']),
+        }
+        
+        return {
+            "ok": False,
+            "profile": stub_profile,
+            "provider": "stub",
+            "reason": str(e)[:300],
+            "message": "프로필 생성 실패, 스텁으로 진행"
+        }
 
 
 @router.get("/profiles/{user_id}")

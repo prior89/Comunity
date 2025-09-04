@@ -82,6 +82,8 @@ class UserProfileCreate(StrictModel):
 
 class UserProfileCreateRequest(BaseModel):
     """프로필 생성 요청 (user_id 포함, 한글 지원)"""
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
+    
     user_id: str = Field(max_length=64)
     age: int = Field(ge=20, le=70)
     gender: Literal["male", "female", "other"]
@@ -102,6 +104,8 @@ class UserProfileCreateRequest(BaseModel):
 
 class PersonalizeRequest(BaseModel):
     """개인화 요청 (한글 사용자 ID 지원)"""
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
+    
     article_id: str = Field(max_length=50)
     user_id: str = Field(max_length=64)
 
