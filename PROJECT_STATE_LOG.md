@@ -104,10 +104,23 @@ openai_api_key
 
 **해결 필요**: Environment Group `ai-news-secrets` 생성 및 환경변수 입력
 
-### 다음 작업 (즉시)
+### 모듈 import 문제 해결 (05:35)
+**문제**: `Could not import module "news.main"` 에러 지속
+**원인**: uvicorn이 서브디렉토리 `news/main.py`를 찾지 못함
+
+**확실한 해결책** (웹 검색 결과 기반):
+```bash
+uvicorn main:app --app-dir news --host 0.0.0.0 --port $PORT
+```
+
+**핵심**: uvicorn `--app-dir` 파라미터가 news 디렉토리를 PYTHONPATH에 추가
+
+### 최종 상태
 1. ✅ Rust 빌드 문제 해결됨 (pydantic==2.5.0)
-2. 🔄 Environment Group 생성 및 환경변수 입력 필요
-3. 🔄 재배포 → 서비스 정상 작동 예상
+2. ✅ GitHub push 완료 (54bb2f0)
+3. ✅ groq 모듈 설치 문제 해결됨
+4. 🔄 Start Command 수정 필요: `--app-dir news` 추가
+5. 🔄 Environment Group `ai-news-secrets` 설정 필요
 
 ---
-*최종 업데이트: 2025-09-04 05:28*
+*최종 업데이트: 2025-09-04 05:35*
