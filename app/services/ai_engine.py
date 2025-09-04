@@ -358,15 +358,37 @@ JSON:
                        original_title=original_news_title,
                        user_id=profile.user_id[:10])
             
-            personalized_content = obj.get("content") or ""
+            # 새로운 폴백 시스템 사용
+            from .groq_fallback import run_personalize
+            
+            # 팩트 정보를 텍스트로 변환
+            facts_text = f"""
+제목: {original_news_title}
+내용: {facts.what}
+인물: {', '.join(facts.who[:3])}
+시점: {facts.when}
+배경: {facts.why}
+"""
+            
+            # 프로필 정보를 dict로 변환
+            profile_dict = {
+                "role": primary_job,
+                "interests": all_interests,
+                "reading_mode": "insight"
+            }
+            
+            # 폴백 시스템으로 개인화 실행
+            result = await run_personalize(facts_text, profile_dict)
+            
             return {
-                "title": original_news_title,  # 강제로 원본 제목 사용
-                "content": personalized_content,
-                "personalized_article": personalized_content,  # 프론트엔드용 통일 키
-                "key_points": [p[:100] for p in (obj.get("key_points") or [])[:3]],
-                "reading_time": obj.get("reading_time") or guide["time"],
-                "disclaimer": obj.get("disclaimer") or f"본 분석은 {primary_job} 관점에서의 참고용 정보이며, 실제 결정은 개인 판단과 책임입니다.",
-                "provider": self.provider
+                "title": original_news_title,
+                "content": result["personalized_article"],
+                "personalized_article": result["personalized_article"],
+                "key_points": [f"{primary_job} 관점 분석", "AI 기반 맞춤형 재구성", "실시간 뉴스 처리"],
+                "reading_time": guide["time"],
+                "disclaimer": f"본 분석은 {primary_job} 관점에서의 참고용 정보입니다.",
+                "provider": result["provider"],
+                "model": result.get("model", "unknown")
             }
             
         except Exception as e:
