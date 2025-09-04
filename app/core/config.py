@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     
     # CORS 설정
-    cors_origins: List[str] = ["http://localhost:3000"]
+    cors_origins: str = "http://localhost:3000"
     
     # 성능 설정
     articles_per_batch: int = 5
@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> List[str]:
         """CORS origins를 리스트로 반환"""
         if isinstance(self.cors_origins, str):
+            # "*" 문자열 처리
+            if self.cors_origins.strip() == "*":
+                return ["*"]
             return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
         return self.cors_origins
     
