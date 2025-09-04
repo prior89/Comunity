@@ -250,6 +250,13 @@ class AIEngine:
         primary_job = profile.job_categories[0] if profile.job_categories else "일반"
         primary_interest = all_interests[0] if all_interests else "일반"
         
+        # 디버깅: 프로필 정보 로깅
+        logger.info("개인화 프로필 정보", 
+                   user_id=profile.user_id[:10],
+                   primary_job=primary_job,
+                   job_categories=profile.job_categories,
+                   interests_count=len(all_interests))
+        
         # 수치 정보 포함 지시
         numbers_instruction = ""
         if facts.numbers:
