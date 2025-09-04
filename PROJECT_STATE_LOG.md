@@ -52,9 +52,50 @@ buildCommand: cd news && python -m pip install --upgrade pip setuptools wheel &&
 - ✅ pydantic: 2.8.2 → 2.5.3  
 - ✅ pydantic-settings: 2.1.0 → 2.0.3
 
+### 극단적 해결책 적용 (05:18)
+**문제**: pydantic 낮춰도 여전히 다른 패키지들이 Rust 빌드 유발
+**의심 패키지**: motor 3.7.1, pymongo 4.14.1, aiohttp 3.12.15, httpx 0.27.2
+
+**최종 해결**: 모든 패키지를 확실히 wheel 지원하는 구 버전으로 다운그레이드
+- fastapi: 0.104.1 → 0.95.2
+- uvicorn: 0.30.6 → 0.20.0  
+- pydantic: 2.5.3 → 2.3.0
+- groq: 0.11.0 → 0.8.0
+- openai: 1.54.3 → 1.3.7
+- aiohttp: 3.12.15 → 3.8.6
+- httpx: 0.27.2 → 0.24.1
+- motor: 3.7.1 → 3.1.2
+- pymongo: 4.14.1 → 4.3.3
+
+### 환경변수 필수 설정 (05:22)
+**Render 대시보드 → Environment Variables 설정 필요:**
+
+🔴 **필수 (7개)**:
+- OPENAI_API_KEY=sk-proj-XbH458Xx...
+- GROQ_API_KEY=gsk_k5lpohLi7VU...
+- MONGODB_URI=mongodb+srv://verachain:...
+- AI_PROVIDER=dual
+- USE_MONGODB=true
+
+🟡 **권장 (6개)**:
+- OPENAI_MODEL=gpt-4o-mini
+- GROQ_MODEL=llama-3.3-70b-versatile
+- PYTHON_VERSION=3.12
+- DEBUG=false
+
+### Environment Group 설정 완료 (05:25)
+✅ **render.yaml 업데이트**: `envVarGroups: [ai-news-secrets]` 추가
+✅ **설정 가이드 생성**: `RENDER_ENVIRONMENT_SETUP.md`
+
+**Environment Group 생성 필요**: `ai-news-secrets`
+- 🔴 필수 변수 8개 (API 키, MongoDB, AI 설정)
+- 🟡 권장 변수 4개 (타임아웃, 디버그 등)
+
 ### 다음 작업
-- 수정된 requirements-render.txt로 재배포
-- 성공 시 GitHub 커밋
+1. Render 대시보드에서 Environment Group `ai-news-secrets` 생성
+2. 환경변수들 입력
+3. 커밋 & 배포
+4. pydantic==2.5.0으로 정상 작동 확인
 
 ---
-*최종 업데이트: 2025-09-04 05:15*
+*최종 업데이트: 2025-09-04 05:25*
