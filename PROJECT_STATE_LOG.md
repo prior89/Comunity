@@ -91,11 +91,23 @@ buildCommand: cd news && python -m pip install --upgrade pip setuptools wheel &&
 - 🔴 필수 변수 8개 (API 키, MongoDB, AI 설정)
 - 🟡 권장 변수 4개 (타임아웃, 디버그 등)
 
-### 다음 작업
-1. Render 대시보드에서 Environment Group `ai-news-secrets` 생성
-2. 환경변수들 입력
-3. 커밋 & 배포
-4. pydantic==2.5.0으로 정상 작동 확인
+### 배포 결과 분석 (05:28)
+✅ **빌드 성공**: pydantic==2.5.0으로 Rust 빌드 문제 완전 해결!  
+❌ **런타임 에러**: `openai_api_key` 환경변수 누락으로 Pydantic 검증 실패
+
+**에러 내용**:
+```
+ValidationError: 1 validation error for Settings
+openai_api_key
+  Field required [type=missing, input_value={...}, input_type=dict]
+```
+
+**해결 필요**: Environment Group `ai-news-secrets` 생성 및 환경변수 입력
+
+### 다음 작업 (즉시)
+1. ✅ Rust 빌드 문제 해결됨 (pydantic==2.5.0)
+2. 🔄 Environment Group 생성 및 환경변수 입력 필요
+3. 🔄 재배포 → 서비스 정상 작동 예상
 
 ---
-*최종 업데이트: 2025-09-04 05:25*
+*최종 업데이트: 2025-09-04 05:28*
