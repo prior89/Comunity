@@ -44,10 +44,17 @@
 buildCommand: cd news && python -m pip install --upgrade pip setuptools wheel && python -m pip install -r requirements-render.txt
 ```
 
+### Rust 빌드 문제 지속 (05:15)
+**문제**: `.python-version` 파일 있음에도 여전히 pydantic==2.8.2가 Rust 빌드 유발
+**원인**: pydantic 2.8+ 버전들이 Python 3.12에서도 wheel 없이 소스 빌드 요구
+
+**추가 해결**: pydantic 버전을 더 낮춤
+- ✅ pydantic: 2.8.2 → 2.5.3  
+- ✅ pydantic-settings: 2.1.0 → 2.0.3
+
 ### 다음 작업
-- Render 대시보드에서 Runtime: Python 3.12 설정 확인
-- 배포 테스트
+- 수정된 requirements-render.txt로 재배포
 - 성공 시 GitHub 커밋
 
 ---
-*최종 업데이트: 2025-09-04 05:12*
+*최종 업데이트: 2025-09-04 05:15*
