@@ -3,8 +3,8 @@ services:
     name: ai-news-platform
     env: python
     plan: starter
-    buildCommand: cd news && python -m pip install --upgrade pip setuptools wheel && python -m pip install -r requirements-render.txt
-    startCommand: cd news && uvicorn main:app --host 0.0.0.0 --port $PORT
+    buildCommand: python -m pip install --upgrade pip setuptools wheel && python -m pip install -r news/requirements-render.txt
+    startCommand: cd news && python main.py
     autoDeploy: true
     envVarGroups:
       - ai-news-secrets
