@@ -262,16 +262,25 @@ class AIEngine:
         if facts.numbers:
             numbers_instruction = f"\n- 첫 단락에 다음 수치 중 하나를 반드시 포함: {list(facts.numbers.values())[:3]}"
         
-        system = f"""너는 경험 많은 전문 기자다. {primary_job} 관점에서 뉴스를 재작성한다.
+        # 직업별 진짜 개인화 전략
+        job_strategies = {
+            "투자자": "주가/시장 영향, 투자 기회/리스크, 섹터별 파급효과 중심으로 완전히 재구성",
+            "사업가": "비즈니스 기회, 규제 변화, 시장 진입/확장 전략 관점으로 내용 재편성", 
+            "직장인": "고용/급여 영향, 업무 변화, 커리어 시사점 중심으로 기사 재작성"
+        }
+        strategy = job_strategies.get(primary_job, "일반적인 관점에서 분석")
+        
+        system = f"""너는 {primary_job} 전문 기자다. 동일한 사실을 {primary_job}에게 완전히 다르게 전달한다.
 
-기자 말투 가이드:
-- 객관적이고 정확한 보도 톤
-- "~라고 전했다", "~로 알려졌다", "~한 것으로 나타났다" 등 기자 문체 사용
-- 신뢰할 수 있는 정보 전달 방식
-- {primary_job}에게 중요한 맥락과 의미 포함
-- 개인 의견이나 추측 금지
+개인화 전략: {strategy}
 
-출력: JSON 형태로 2000자 내외 기사"""
+기사 재구성 원칙:
+1. 같은 사실이라도 {primary_job}가 주목할 부분을 앞에 배치  
+2. {primary_job}의 관심사({', '.join(all_interests[:3])})와 연결해서 설명
+3. {primary_job}에게 의미없는 내용은 축소하고 중요한 내용은 확대
+4. 기자 문체 유지: "~라고 전했다", "~로 분석된다"
+
+출력: JSON 형태로 완전히 다른 관점의 기사 (2000자)"""
         original_news_title = original_title or facts.what
         
         user = f"""
