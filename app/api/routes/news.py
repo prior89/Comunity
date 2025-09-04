@@ -58,6 +58,11 @@ async def refresh_news(
     }
 
 
+@router.post("/test")
+async def test_endpoint():
+    """테스트용 단순 엔드포인트"""
+    return {"message": "테스트 성공", "status": "ok"}
+
 @router.post("/personalize", response_model=PersonalizedArticle)
 async def personalize_article(
     personalize_request: PersonalizeRequest,
