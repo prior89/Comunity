@@ -192,6 +192,55 @@
   <script>
     // === 자동화 데모 JavaScript ===
     
+    // 도훈님 방어형 DOM 조작 함수들
+    function setText(id, value) {
+      const el = document.getElementById(id);
+      if (!el) { 
+        console.error(`[UI] element #${id} not found`); 
+        return; 
+      }
+      el.textContent = value ?? '';
+    }
+    
+    function setHTML(id, html) {
+      const el = document.getElementById(id);
+      if (!el) { 
+        console.error(`[UI] element #${id} not found`); 
+        return; 
+      }
+      el.innerHTML = html ?? '';
+    }
+    
+    function setClassName(id, className) {
+      const el = document.getElementById(id);
+      if (!el) { 
+        console.error(`[UI] element #${id} not found`); 
+        return; 
+      }
+      el.className = className;
+    }
+    
+    // 프로필 API 안전 호출 함수
+    async function upsertProfileSafe(payload) {
+      try {
+        const r = await fetch('/api/users/profiles', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+        if (!r.ok) throw new Error('profiles 503');
+        return await r.json();
+      } catch (e) {
+        console.warn('[profiles] fallback to default:', e.message);
+        return { 
+          user_id: 'guest', 
+          reading_mode: 'insight', 
+          interests: [],
+          job_categories: [payload.job_categories?.[0] || '일반']
+        };
+      }
+    }
+    
     const jobProfiles = {
       "직장인": {
         user_id: 'demo_worker',
@@ -243,8 +292,8 @@
         selectedJob = btn.getAttribute('data-job');
         
         // 버튼 텍스트 업데이트
-        document.getElementById('autoDemoBtn').textContent = selectedJob + ' 맞춤 AI 분석 시작';
-        document.getElementById('jobDisplay').textContent = selectedJob;
+        setText('autoDemoBtn', selectedJob + ' 맞춤 AI 분석 시작');
+        setText('jobDisplay', selectedJob);
       });
     });
 
@@ -252,22 +301,18 @@
     document.getElementById('autoDemoBtn').addEventListener('click', async () => {
       const autoDemoBtn = document.getElementById('autoDemoBtn');
       autoDemoBtn.disabled = true;
-      autoDemoBtn.textContent = selectedJob + ' 분석 실행 중...';
+      setText('autoDemoBtn', selectedJob + ' 분석 실행 중...');
       
       const startTime = Date.now();
 
       try {
-        // 1단계: 사용자 프로필 생성
+        // 1단계: 사용자 프로필 생성 (안전한 호출)
         const profile = jobProfiles[selectedJob];
-        const profileResponse = await fetch('/api/users/profiles', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(profile)
-        });
+        const profileData = await upsertProfileSafe(profile);
 
         // 2단계: 뉴스 수집
-        document.getElementById('step1-dot').className = 'w-2 h-2 bg-blue-400 rounded-full animate-pulse';
-        document.getElementById('crawlingResult').innerHTML = '<div class="animate-pulse text-blue-400">최신 뉴스를 수집하고 있습니다...</div>';
+        setClassName('step1-dot', 'w-2 h-2 bg-blue-400 rounded-full animate-pulse');
+        setHTML('crawlingResult', '<div class="animate-pulse text-blue-400">최신 뉴스를 수집하고 있습니다...</div>');
         
         await fetch('/api/news/refresh?force=1', { 
           method: 'POST',
@@ -287,8 +332,8 @@
             const article = articles.articles[0];
             
             // 1단계 완료
-            document.getElementById('step1-dot').className = 'w-2 h-2 bg-emerald-400 rounded-full';
-            document.getElementById('crawl-dot').className = 'w-3 h-3 bg-emerald-400 rounded-full';
+            setClassName('step1-dot', 'w-2 h-2 bg-emerald-400 rounded-full');
+            setClassName('crawl-dot', 'w-3 h-3 bg-emerald-400 rounded-full');
             document.getElementById('crawlingResult').innerHTML = `
               <div class="space-y-2">
                 <div class="font-semibold text-emerald-300">${article.title}</div>
@@ -312,7 +357,7 @@
               
               // 실제 팩트 데이터 조회 및 표시
               const factTime = ((Date.now() - startTime) / 1000).toFixed(1);
-              document.getElementById('factTime').textContent = factTime;
+              setText('factTime', factTime);
               
               // 실제 기사의 팩트 데이터 가져오기
               const articleDetailResponse = await fetch(`/api/news/articles/${article.id}`);
@@ -354,7 +399,7 @@
                   },
                   body: JSON.stringify({
                     article_id: article.id,
-                    user_id: profile.user_id
+                    user_id: profileData.user_id || profile.user_id
                   })
                 });
                 
