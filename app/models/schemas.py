@@ -3,7 +3,7 @@ Pydantic 스키마 정의
 """
 from datetime import datetime
 from typing import Dict, List, Optional, Literal
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -41,9 +41,9 @@ class UserProfile:
     work_style: str
     family_status: str
     living_situation: str
-    reading_mode: str
-    created_at: str
-    updated_at: str
+    reading_mode: str = "insight"  # 기본값으로 필수성 제거
+    created_at: str = ""
+    updated_at: str = ""
 
 
 @dataclass

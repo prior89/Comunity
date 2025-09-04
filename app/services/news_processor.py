@@ -276,8 +276,9 @@ class NewsProcessor:
                 work_style="commute",
                 family_status="single",
                 living_situation="alone",
-                created_at=datetime.now(),
-                updated_at=datetime.now()
+                reading_mode="insight",  # 필수 인수 추가
+                created_at=str(datetime.now()),
+                updated_at=str(datetime.now())
             )
             logger.info("스텁 프로필 생성", user_id=user_id[:10])
         

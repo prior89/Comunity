@@ -83,8 +83,9 @@ async def create_user_profile(
             "work_style": getattr(profile_request, 'work_style', 'commute'),
             "family_status": getattr(profile_request, 'family_status', 'single'),
             "living_situation": getattr(profile_request, 'living_situation', 'alone'),
-            "created_at": now_kst(),
-            "updated_at": now_kst()
+            "reading_mode": "insight",  # 필수 필드 추가
+            "created_at": str(now_kst()),
+            "updated_at": str(now_kst())
         }
         
         logger.info("스텁 프로필로 계속 진행", user_id=profile_request.user_id[:10])
