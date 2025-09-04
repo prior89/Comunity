@@ -405,17 +405,19 @@ JSON:
         }
     
     async def health_check(self) -> bool:
-        """AI 엔진 상태 확인"""
+        """AI 엔진 상태 확인 (최적화: API 호출 없이 설정만 확인)"""
         try:
-            async with self._concurrent_limit:
-                response = await self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[{"role": "user", "content": "ping"}],
-                    temperature=0,
-                    max_tokens=5,
-                    timeout=10.0
-                )
-                return bool(response.choices)
+            # 도훈님 최적화: 실제 API 호출 대신 설정 검증만
+            if self.provider == "dual":
+                # dual 모드: 양쪽 클라이언트 객체 존재 확인
+                return bool(getattr(self, 'groq_client', None) and getattr(self, 'openai_client', None))
+            elif self.provider == "groq":
+                # groq 모드: API 키 존재 확인
+                return bool(getattr(settings, 'groq_api_key', None))
+            elif self.provider == "openai": 
+                # openai 모드: 클라이언트 객체 존재 확인
+                return bool(self.client)
+            return False
         except Exception as e:
-            logger.error("AI 엔진 헬스체크 실패", error=str(e))
+            logger.warning("AI 엔진 헬스체크 실패", error=str(e))
             return False

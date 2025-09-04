@@ -211,14 +211,9 @@ class NewsCollector:
             return unique_articles
     
     async def health_check(self) -> bool:
-        """뉴스 수집기 상태 확인"""
+        """뉴스 수집기 상태 확인 (최적화: 네트워크 호출 없이 설정만 확인)"""
         try:
-            # 첫 번째 소스에 대해 간단한 연결 테스트
-            if not self.sources:
-                return True
-            
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
-                async with session.get(self.sources[0]['url']) as response:
-                    return response.status == 200
+            # 도훈님 최적화: 실제 HTTP 요청 대신 소스 설정만 확인
+            return len(self.sources) > 0 and all('url' in source for source in self.sources)
         except Exception:
             return False
