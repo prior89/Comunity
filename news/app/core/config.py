@@ -1,0 +1,80 @@
+"""
+애플리케이션 설정 관리
+"""
+import os
+from typing import Optional, List
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    """환경별 설정 관리"""
+    
+    # 기본 설정
+    app_name: str = "AI 뉴스 개인화 플랫폼"
+    app_version: str = "3.0.8"
+    environment: str = "development"
+    debug: bool = False
+    
+    # API 설정
+    openai_api_key: str
+    openai_model: str = "gpt-4o-mini"
+    openai_timeout: int = 60
+    openai_retries: int = 2
+    openai_concurrency_limit: int = 25
+    
+    # Groq API 설정
+    groq_api_key: Optional[str] = None
+    groq_model: str = "llama-3.3-70b-versatile"
+    
+    # AI 제공자 선택
+    ai_provider: str = "openai"  # openai 또는 groq
+    
+    # 보안 설정
+    internal_api_key: Optional[str] = None
+    trusted_proxies: List[str] = []
+    
+    # 데이터베이스 설정
+    database_url: str = "sqlite:///kkalkalnews.db"
+    mongodb_uri: Optional[str] = None  # MongoDB 연결 문자열
+    use_mongodb: bool = False  # MongoDB 사용 여부
+    redis_url: str = "redis://localhost:6379"
+    
+    # CORS 설정
+    cors_origins: List[str] = ["http://localhost:3000"]
+    
+    # 성능 설정
+    articles_per_batch: int = 1  # 데모용 최적화: 최신 1개만
+    collect_timeout: int = 5   # 데모용 초고속 수집
+    summary_max: int = 10000
+    min_content_len: int = 80  # 품질 향상을 위해 80자로 증가
+    rate_limit_per_minute: int = 100
+    
+    # 캐시 설정
+    pc_ttl_days: int = 30
+    activity_ttl_days: int = 90
+    collect_lock_ttl: int = 180
+    
+    # Structured Outputs 설정
+    use_structured_outputs: bool = False
+    
+    class Config:
+        env_file = ".env"
+        case_sensitive = False
+        
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """CORS origins를 리스트로 반환"""
+        if isinstance(self.cors_origins, str):
+            return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        return self.cors_origins
+    
+    @property
+    def trusted_proxies_list(self) -> List[str]:
+        """신뢰할 수 있는 프록시를 리스트로 반환"""
+        if isinstance(self.trusted_proxies, str):
+            return [ip.strip() for ip in self.trusted_proxies.split(",") if ip.strip()]
+        return self.trusted_proxies
+
+
+# 전역 설정 인스턴스
+settings = Settings()

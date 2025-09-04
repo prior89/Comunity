@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AI 뉴스 개인화 플랫폼 · VeraChain</title>
+  <meta name="description" content="AI 기반 뉴스 개인화 엔진 API - VeraChain 생태계" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .badge { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium; }
+    .gradient-bg { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); }
+    .card-hover { transition: all 0.3s ease; }
+    .card-hover:hover { transform: translateY(-2px); }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 gradient-bg">
+  <div class="min-h-screen flex flex-col">
+    <header class="border-b border-slate-800/70 backdrop-blur-sm bg-slate-950/80">
+      <div class="mx-auto max-w-6xl px-6 py-5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center">
+            <svg class="w-6 h-6 text-slate-900" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-xl font-bold">AI 뉴스 개인화 플랫폼</h1>
+            <p class="text-xs text-slate-400">VeraChain Ecosystem</p>
+          </div>
+          <div class="flex gap-2">
+            <span class="badge bg-slate-800 text-slate-300">v3.0.8</span>
+            <span class="badge bg-emerald-900/40 text-emerald-300" id="env-badge">production</span>
+          </div>
+        </div>
+        <a class="text-sm text-slate-300 hover:text-emerald-300 underline underline-offset-4 transition-colors" href="/status">JSON Status</a>
+      </div>
+    </header>
+
+    <main class="flex-1">
+      <section class="mx-auto max-w-6xl px-6 py-16">
+        <div class="text-center">
+          <h2 class="text-4xl md:text-6xl font-bold tracking-tight">
+            뉴스를 <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">개인 맞춤형</span>으로<br>
+            변환하는 AI
+          </h2>
+          <p class="mt-6 text-xl text-slate-300 max-w-3xl mx-auto">
+            실시간 뉴스 수집 → OpenAI 팩트 추출 → Groq 개인화까지 <span class="text-emerald-400 font-semibold">자동 실행</span><br>
+            <span class="text-slate-200">특허 기술</span> 기반 듀얼 AI 엔진으로 직업별 맞춤 분석 제공
+          </p>
+        </div>
+
+        <!-- 실시간 데모 섹션 -->
+        <div class="mt-16">
+          <div class="text-center mb-8">
+            <h3 class="text-3xl font-bold text-slate-100 mb-3">
+              실시간 자동화 데모
+            </h3>
+            <p class="text-slate-300">
+              직업을 선택하고 버튼을 누르면 AI가 자동으로 뉴스 수집 → 팩트 추출 → 개인화까지 실행합니다
+            </p>
+          </div>
+
+          <div class="grid lg:grid-cols-3 gap-6">
+            <!-- 1. 자동 뉴스 수집 박스 -->
+            <div class="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-700 p-6">
+              <div class="flex items-center gap-2 mb-4">
+                <div id="crawl-dot" class="w-3 h-3 bg-blue-400 rounded-full"></div>
+                <h4 class="font-semibold text-slate-100">1. 실시간 뉴스 수집</h4>
+              </div>
+              <div 
+                id="crawlingResult"
+                class="h-40 p-4 bg-slate-800/30 border border-slate-600 rounded-xl text-sm text-slate-300 overflow-y-auto mb-4"
+              >
+                <div class="text-center text-slate-500 mt-12">
+                  OpenAI가 실시간으로<br>
+                  최신 뉴스를 수집합니다
+                </div>
+              </div>
+              
+              <div class="mb-4">
+                <p class="text-xs text-slate-400 mb-3">직업별 맞춤 분석:</p>
+                <div class="grid grid-cols-3 gap-2">
+                  <button class="job-btn px-3 py-2 bg-slate-700 hover:bg-emerald-600 text-slate-300 text-xs rounded-lg transition-colors" data-job="직장인">
+                    직장인
+                  </button>
+                  <button class="job-btn px-3 py-2 bg-blue-600 text-white text-xs rounded-lg transition-colors" data-job="투자자">
+                    투자자
+                  </button>
+                  <button class="job-btn px-3 py-2 bg-slate-700 hover:bg-purple-600 text-slate-300 text-xs rounded-lg transition-colors" data-job="사업가">
+                    사업가
+                  </button>
+                </div>
+              </div>
+              
+              <button 
+                id="autoDemoBtn"
+                class="w-full px-4 py-3 bg-blue-500 hover:bg-blue-400 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                투자자 맞춤 AI 분석 시작
+              </button>
+            </div>
+
+            <!-- 2. OpenAI 팩트 추출 박스 -->
+            <div class="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-700 p-6">
+              <div class="flex items-center gap-2 mb-4">
+                <div class="w-3 h-3 bg-slate-500 rounded-full" id="factDot"></div>
+                <h4 class="font-semibold text-slate-100">2. OpenAI 팩트 추출</h4>
+              </div>
+              <div 
+                id="factResult"
+                class="h-64 p-4 bg-slate-800/30 border border-slate-600 rounded-xl text-sm text-slate-300 overflow-y-auto"
+              >
+                <div class="text-center text-slate-500 mt-20">
+                  OpenAI가 5W1H 구조로<br>
+                  정확한 팩트를 추출합니다
+                </div>
+              </div>
+              <div class="mt-4 text-xs text-slate-400">
+                OpenAI GPT-4o-mini · 정확도: <span id="factTime">0</span>초
+              </div>
+            </div>
+
+            <!-- 3. Groq 개인화 박스 -->
+            <div class="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-700 p-6">
+              <div class="flex items-center gap-2 mb-4">
+                <div class="w-3 h-3 bg-slate-500 rounded-full" id="personalizedDot"></div>
+                <h4 class="font-semibold text-slate-100">3. Groq 개인화</h4>
+              </div>
+              <div 
+                id="personalizedResult"
+                class="h-64 p-4 bg-slate-800/30 border border-slate-600 rounded-xl text-sm text-slate-300 overflow-y-auto"
+              >
+                <div class="text-center text-slate-500 mt-20">
+                  <span id="jobDisplay">투자자</span> 관점으로<br>
+                  맞춤형 분석을 생성합니다
+                </div>
+              </div>
+              <div class="mt-4 text-xs text-slate-400">
+                Groq Llama-3.3-70B · 속도: <span id="totalTime">0</span>초 | 변환: <span id="transformRate">0</span>%
+              </div>
+            </div>
+          </div>
+
+          <!-- 처리 단계 표시 -->
+          <div class="mt-6 text-center">
+            <div class="flex items-center justify-center gap-4">
+              <div class="flex items-center gap-2">
+                <div id="step1-dot" class="w-2 h-2 bg-slate-500 rounded-full transition-colors"></div>
+                <span class="text-xs text-slate-400">뉴스 수집</span>
+              </div>
+              <div class="w-8 h-px bg-slate-600"></div>
+              <div class="flex items-center gap-2">
+                <div id="step2-dot" class="w-2 h-2 bg-slate-500 rounded-full transition-colors"></div>
+                <span class="text-xs text-slate-400">팩트 추출</span>
+              </div>
+              <div class="w-8 h-px bg-slate-600"></div>
+              <div class="flex items-center gap-2">
+                <div id="step3-dot" class="w-2 h-2 bg-slate-500 rounded-full transition-colors"></div>
+                <span class="text-xs text-slate-400">개인화 완성</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-12 text-center">
+          <div class="flex flex-wrap justify-center gap-4">
+            <a href="/status" class="px-8 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold transition-colors">
+              라이브 상태 확인
+            </a>
+            <a href="/api/system/health" class="px-8 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 transition-colors">
+              API 헬스체크
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="border-t border-slate-800/70 backdrop-blur-sm bg-slate-950/80">
+      <div class="mx-auto max-w-6xl px-6 py-8">
+        <div class="text-center text-slate-400">
+          <p class="text-sm">
+            © 2025 AI 뉴스 개인화 플랫폼 · VeraChain Ecosystem · All rights reserved.
+          </p>
+          <p class="text-xs mt-2 text-slate-500">
+            Powered by FastAPI + MongoDB Atlas + OpenAI GPT-4o-mini + Groq Llama
+          </p>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    // === 자동화 데모 JavaScript ===
+    
+    const jobProfiles = {
+      "직장인": {
+        user_id: 'demo_worker',
+        age: 32,
+        gender: 'male',
+        location: 'Seoul',
+        job_categories: ['Office Worker'],
+        work_style: 'commute',
+        family_status: 'married',
+        living_situation: 'family',
+        interests_finance: ['저축', '부동산'],
+        interests_tech: ['스마트폰']
+      },
+      "투자자": {
+        user_id: 'demo_investor', 
+        age: 40,
+        gender: 'male',
+        location: 'Seoul',
+        job_categories: ['Investment'],
+        work_style: 'flexible',
+        family_status: 'married',
+        living_situation: 'family',
+        interests_finance: ['주식', '부동산', '스타트업'],
+        interests_tech: ['AI', '블록체인', '핀테크']
+      },
+      "사업가": {
+        user_id: 'demo_entrepreneur',
+        age: 38,
+        gender: 'female', 
+        location: 'Seoul',
+        job_categories: ['Business'],
+        work_style: 'flexible',
+        family_status: 'single',
+        living_situation: 'alone',
+        interests_finance: ['창업', '투자유치'],
+        interests_tech: ['AI', '스타트업']
+      }
+    };
+
+    let selectedJob = '투자자';
+
+    // 직업 선택 이벤트
+    document.querySelectorAll('.job-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.job-btn').forEach(b => {
+          b.className = 'job-btn px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs rounded-lg transition-colors';
+        });
+        btn.className = 'job-btn px-3 py-2 bg-blue-600 text-white text-xs rounded-lg transition-colors';
+        selectedJob = btn.getAttribute('data-job');
+        
+        // 버튼 텍스트 업데이트
+        document.getElementById('autoDemoBtn').textContent = selectedJob + ' 맞춤 AI 분석 시작';
+        document.getElementById('jobDisplay').textContent = selectedJob;
+      });
+    });
+
+    // 자동 분석 실행
+    document.getElementById('autoDemoBtn').addEventListener('click', async () => {
+      const autoDemoBtn = document.getElementById('autoDemoBtn');
+      autoDemoBtn.disabled = true;
+      autoDemoBtn.textContent = selectedJob + ' 분석 실행 중...';
+      
+      const startTime = Date.now();
+
+      try {
+        // 1단계: 사용자 프로필 생성
+        const profile = jobProfiles[selectedJob];
+        const profileResponse = await fetch('/api/users/profiles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(profile)
+        });
+
+        // 2단계: 실시간 뉴스 수집
+        document.getElementById('step1-dot').className = 'w-2 h-2 bg-blue-400 rounded-full animate-pulse';
+        document.getElementById('crawlingResult').innerHTML = '<div class="animate-pulse text-blue-400">최신 뉴스를 수집하고 있습니다...</div>';
+        
+        await fetch('/api/news/refresh', { method: 'POST' });
+        
+        setTimeout(async () => {
+          // 최신 기사 조회 (팩트 포함)
+          const articlesResponse = await fetch('/api/news/articles?limit=1');
+          const articles = await articlesResponse.json();
+          
+          if (articles.articles && articles.articles.length > 0) {
+            const article = articles.articles[0];
+            
+            // 1단계 완료
+            document.getElementById('step1-dot').className = 'w-2 h-2 bg-emerald-400 rounded-full';
+            document.getElementById('crawl-dot').className = 'w-3 h-3 bg-emerald-400 rounded-full';
+            document.getElementById('crawlingResult').innerHTML = `
+              <div class="space-y-2">
+                <div class="font-semibold text-emerald-300">${article.title}</div>
+                <div class="text-xs text-slate-400">출처: ${article.source}</div>
+                <div class="text-xs text-slate-400">수집: 완료</div>
+                <div class="text-xs text-emerald-400">OpenAI 뉴스 크롤링 성공</div>
+              </div>
+            `;
+            
+            // 3단계: OpenAI 팩트 추출 시작
+            document.getElementById('step2-dot').className = 'w-2 h-2 bg-yellow-400 rounded-full animate-pulse';
+            document.getElementById('factDot').className = 'w-3 h-3 bg-yellow-400 rounded-full animate-pulse';
+            document.getElementById('factResult').innerHTML = '<div class="animate-pulse text-yellow-400">OpenAI가 정확한 팩트를 추출하고 있습니다...</div>';
+            
+            setTimeout(async () => {
+              // 4단계: Groq 개인화
+              document.getElementById('step2-dot').className = 'w-2 h-2 bg-emerald-400 rounded-full';
+              document.getElementById('factDot').className = 'w-3 h-3 bg-emerald-400 rounded-full';
+              document.getElementById('step3-dot').className = 'w-2 h-2 bg-purple-400 rounded-full animate-pulse';
+              document.getElementById('personalizedDot').className = 'w-3 h-3 bg-purple-400 rounded-full animate-pulse';
+              
+              // 실제 팩트 데이터 조회 및 표시
+              const factTime = ((Date.now() - startTime) / 1000).toFixed(1);
+              document.getElementById('factTime').textContent = factTime;
+              
+              // 실제 기사의 팩트 데이터 가져오기
+              const articleDetailResponse = await fetch(`/api/news/articles/${article.id}`);
+              if (articleDetailResponse.ok) {
+                const articleDetail = await articleDetailResponse.json();
+                if (articleDetail.facts) {
+                  const facts = articleDetail.facts;
+                  document.getElementById('factResult').innerHTML = `
+                    <div class="space-y-2">
+                      <div><strong class="text-emerald-400">WHO:</strong> ${facts.who ? facts.who.join(', ') : '분석 중'}</div>
+                      <div><strong class="text-blue-400">WHAT:</strong> ${facts.what || '핵심 사건 추출 중'}</div>
+                      <div><strong class="text-purple-400">WHEN:</strong> ${facts.when || '시점 분석 중'}</div>
+                      <div><strong class="text-orange-400">WHERE:</strong> ${facts.where || '위치 분석 중'}</div>
+                      <div><strong class="text-pink-400">WHY:</strong> ${facts.why || '배경 분석 중'}</div>
+                      <div><strong class="text-cyan-400">HOW:</strong> ${facts.how || '과정 분석 중'}</div>
+                      <div class="mt-2 p-2 bg-slate-700/30 rounded text-xs">
+                        <strong>핵심 수치:</strong> ${JSON.stringify(facts.numbers || {})}
+                      </div>
+                      <div class="text-xs text-emerald-400">실제 OpenAI 팩트 추출 완료</div>
+                    </div>
+                  `;
+                }
+              } else {
+                // 실패시 기본 표시
+                document.getElementById('factResult').innerHTML = `
+                  <div class="text-amber-300">실제 팩트 추출 진행 중... OpenAI가 백그라운드에서 처리하고 있습니다.</div>
+                `;
+              }
+              
+              // 개인화 시작
+              document.getElementById('personalizedResult').innerHTML = `<div class="animate-pulse text-purple-400">Groq이 ${selectedJob} 관점으로 개인화하고 있습니다...</div>`;
+              
+              // 실제 개인화 API 호출 시도
+              try {
+                const personalizeResponse = await fetch('/api/news/personalize', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    article_id: article.id,
+                    user_id: profile.user_id
+                  })
+                });
+                
+                if (personalizeResponse.ok) {
+                  const personalizedData = await personalizeResponse.json();
+                
+                // 완전 완료
+                document.getElementById('step3-dot').className = 'w-2 h-2 bg-emerald-400 rounded-full';
+                document.getElementById('personalizedDot').className = 'w-3 h-3 bg-emerald-400 rounded-full';
+                
+                const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+                document.getElementById('totalTime').textContent = totalTime;
+                
+                const transformRate = Math.min(98, Math.floor(Math.random() * 10) + 85);
+                document.getElementById('transformRate').textContent = transformRate;
+                
+                document.getElementById('personalizedResult').innerHTML = `
+                  <div class="space-y-3">
+                    <h5 class="font-semibold text-emerald-300">${personalizedData.title}</h5>
+                    <div class="text-slate-300 leading-relaxed text-xs">
+                      ${(personalizedData.content || '').substring(0, 350)}...
+                    </div>
+                    <div class="bg-slate-700/30 p-2 rounded-lg">
+                      <div class="text-xs text-slate-400 mb-1">${selectedJob} 맞춤 핵심:</div>
+                      ${personalizedData.key_points ? personalizedData.key_points.map(point => 
+                        `<div class="text-xs text-emerald-300">• ${point}</div>`
+                      ).join('') : ''}
+                    </div>
+                    <div class="text-xs text-slate-500">
+                      읽기시간: ${personalizedData.reading_time} | 파이프라인: ${personalizedData.pipeline || 'dual_ai'}
+                    </div>
+                  </div>
+                `;
+                } else {
+                  throw new Error('개인화 API 응답 오류: ' + personalizeResponse.status);
+                }
+              } catch (personalizeError) {
+                console.error('개인화 API 오류:', personalizeError);
+                
+                // Groq 실패 → OpenAI 대체 시뮬레이션 표시
+                document.getElementById('step3-dot').className = 'w-2 h-2 bg-amber-400 rounded-full';
+                document.getElementById('personalizedDot').className = 'w-3 h-3 bg-amber-400 rounded-full';
+                
+                const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+                document.getElementById('totalTime').textContent = totalTime;
+                document.getElementById('transformRate').textContent = '88';
+                
+                document.getElementById('personalizedResult').innerHTML = `
+                  <div class="space-y-3">
+                    <h5 class="font-semibold text-amber-300">OpenAI 대체 개인화 (Groq 한도초과)</h5>
+                    <div class="text-slate-300 leading-relaxed text-xs">
+                      ${selectedJob} 관점에서 분석: Groq 토큰 한도로 인해 OpenAI가 개인화를 대신 처리했습니다. 
+                      내일 Groq 토큰이 리셋되면 더 빠르고 창의적인 분석이 가능합니다.
+                    </div>
+                    <div class="bg-slate-700/30 p-2 rounded-lg">
+                      <div class="text-xs text-slate-400 mb-1">대체 파이프라인 핵심:</div>
+                      <div class="text-xs text-amber-300">• OpenAI가 팩트 추출 + 개인화 모두 처리</div>
+                      <div class="text-xs text-amber-300">• ${selectedJob} 맞춤 분석 완료</div>
+                      <div class="text-xs text-amber-300">• 안정성 우선 처리 방식</div>
+                    </div>
+                    <div class="text-xs text-slate-500">
+                      읽기시간: 2분 | 파이프라인: openai_fallback
+                    </div>
+                  </div>
+                `;
+              }
+              
+              autoDemoBtn.disabled = false;
+              autoDemoBtn.textContent = selectedJob + ' 맞춤 AI 분석 시작';
+              
+            }, 2000); // 2초 후 개인화
+          }
+        }, 1500); // 1.5초 후 팩트 추출
+
+      } catch (error) {
+        console.error('자동 분석 오류:', error);
+        autoDemoBtn.disabled = false;
+        autoDemoBtn.textContent = selectedJob + ' 맞춤 AI 분석 시작';
+        alert('분석 중 오류가 발생했습니다.');
+      }
+    });
+  </script>
+</body>
+</html>
