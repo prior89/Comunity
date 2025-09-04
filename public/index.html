@@ -393,21 +393,26 @@
                 document.getElementById('totalTime').textContent = totalTime;
                 document.getElementById('transformRate').textContent = '88';
                 
+                // 실제 API 응답 사용
+                const content = result.content || "개인화된 기사 생성 중...";
+                const keyPoints = result.key_points || [];
+                const readingTime = result.reading_time || "2분";
+                const provider = result.provider || "unknown";
+                
                 document.getElementById('personalizedResult').innerHTML = `
                   <div class="space-y-3">
-                    <h5 class="font-semibold text-amber-300">OpenAI 대체 개인화 (Groq 한도초과)</h5>
-                    <div class="text-slate-300 leading-relaxed text-xs">
-                      ${selectedJob} 관점에서 분석: Groq 토큰 한도로 인해 OpenAI가 개인화를 대신 처리했습니다. 
-                      내일 Groq 토큰이 리셋되면 더 빠르고 창의적인 분석이 가능합니다.
+                    <h5 class="font-semibold text-emerald-300">개인화된 기사</h5>
+                    <div class="text-slate-300 leading-relaxed text-sm">
+                      ${content}
                     </div>
-                    <div class="bg-slate-700/30 p-2 rounded-lg">
-                      <div class="text-xs text-slate-400 mb-1">대체 파이프라인 핵심:</div>
-                      <div class="text-xs text-amber-300">• OpenAI가 팩트 추출 + 개인화 모두 처리</div>
-                      <div class="text-xs text-amber-300">• ${selectedJob} 맞춤 분석 완료</div>
-                      <div class="text-xs text-amber-300">• 안정성 우선 처리 방식</div>
-                    </div>
+                    ${keyPoints.length > 0 ? `
+                      <div class="bg-slate-700/30 p-2 rounded-lg">
+                        <div class="text-xs text-slate-400 mb-1">핵심 포인트:</div>
+                        ${keyPoints.map(point => `<div class="text-xs text-emerald-300">• ${point}</div>`).join('')}
+                      </div>
+                    ` : ''}
                     <div class="text-xs text-slate-500">
-                      읽기시간: 2분 | 파이프라인: openai_fallback
+                      읽기시간: ${readingTime} | 파이프라인: ${provider}
                     </div>
                   </div>
                 `;
