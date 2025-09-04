@@ -261,22 +261,33 @@ class NewsProcessor:
         # 사용자 프로필 조회 (없으면 스텁 생성)
         profile = self.db.get_user_profile(user_id)
         if not profile:
-            # 스텁 프로필 생성 (절대 실패하지 않음)
+            # 스텁 프로필 생성 (user_id 기반 개인화)
             from ..models.schemas import UserProfile
+            
+            # user_id 기반으로 다른 스텁 프로필 생성
+            if "investor" in user_id.lower() or "투자자" in user_id:
+                job, interests = "투자자", ["투자", "경제", "증시"]
+            elif "entrepreneur" in user_id.lower() or "사업가" in user_id:
+                job, interests = "사업가", ["창업", "경영", "마케팅"] 
+            elif "worker" in user_id.lower() or "직장인" in user_id:
+                job, interests = "직장인", ["직장생활", "승진", "업무효율"]
+            else:
+                job, interests = "일반", ["뉴스", "시사", "정보"]
+            
             profile = UserProfile(
                 user_id=user_id,
                 age=30,
                 gender="other", 
                 location="Seoul",
-                job_categories=["투자자"],
-                interests_finance=["투자", "경제"],
+                job_categories=[job],
+                interests_finance=interests,
                 interests_lifestyle=["뉴스"],
                 interests_hobby=["독서"],
                 interests_tech=["AI"],
                 work_style="commute",
                 family_status="single",
                 living_situation="alone",
-                reading_mode="insight",  # 필수 인수 추가
+                reading_mode="insight",
                 created_at=str(datetime.now()),
                 updated_at=str(datetime.now())
             )
