@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     # 캐시 설정
     pc_ttl_days: int = 30
     activity_ttl_days: int = 90
-    collect_lock_ttl: int = 180
+    collect_lock_ttl: int = 30
     
     # Structured Outputs 설정
     use_structured_outputs: bool = False

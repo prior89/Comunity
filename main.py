@@ -67,6 +67,13 @@ async def lifespan(app: FastAPI):
     processor = NewsProcessor(settings.openai_api_key)
     set_news_processor(processor)
     
+    # 서비스 시작 시 기존 락 강제 해제 (단일 인스턴스 환경)
+    try:
+        await processor.distributed_lock.release_all()
+        logger.info("기존 분산 락 해제 완료")
+    except Exception as e:
+        logger.warning(f"분산 락 해제 실패 (무시): {e}")
+    
     # 시스템 상태 확인
     health_checks = await processor.health_check()
     logger.info("시스템 초기화 완료", health_checks=health_checks)
