@@ -13,7 +13,7 @@ from app.core.logging import setup_logging, get_logger
 from app.models.database import Database
 from app.services.news_processor import NewsProcessor
 from app.api.dependencies import set_news_processor, set_database, set_mongo_database
-from app.api.routes import news, users, system
+from app.api.routes import news, users, system, dashboard
 from app.middleware import RateLimitMiddleware, RequestLoggingMiddleware
 # from app.utils.cache import cache_manager  # 캐시 완전 제거
 
@@ -185,6 +185,7 @@ app.add_middleware(RateLimitMiddleware,
 app.include_router(news.router)
 app.include_router(users.router)
 app.include_router(system.router)
+app.include_router(dashboard.router)
 
 # --- 투자자용 랜딩/상태 라우트 ---
 from fastapi.responses import HTMLResponse, JSONResponse, Response

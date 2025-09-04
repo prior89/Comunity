@@ -26,22 +26,30 @@ class NewsCollector:
             {
                 'name': '연합뉴스', 
                 'url': 'https://www.yonhapnewstv.co.kr/browse/feed/', 
-                'category': 'general'
+                'category': 'general',
+                'license': 'RSS_PUBLIC',
+                'copyright': '© 연합뉴스. All rights reserved.'
             },
             {
                 'name': 'SBS뉴스',
                 'url': 'https://news.sbs.co.kr/news/SectionRssFeed.do?sectionId=01',
-                'category': 'general'
+                'category': 'general',
+                'license': 'RSS_PUBLIC',
+                'copyright': '© SBS. All rights reserved.'
             },
             {
                 'name': 'KBS뉴스', 
                 'url': 'http://world.kbs.co.kr/rss/rss_news.htm?lang=k',
-                'category': 'general'
+                'category': 'general',
+                'license': 'RSS_PUBLIC',
+                'copyright': '© KBS. All rights reserved.'
             },
             {
                 'name': 'MBC뉴스',
                 'url': 'https://imnews.imbc.com/rss/news/news_00.xml', 
-                'category': 'general'
+                'category': 'general',
+                'license': 'RSS_PUBLIC', 
+                'copyright': '© MBC. All rights reserved.'
             }
         ]
         self.session_timeout = aiohttp.ClientTimeout(total=settings.collect_timeout)
@@ -133,7 +141,10 @@ class NewsCollector:
             'url': url,
             'source': source['name'],
             'category': source.get('category', 'general'),
-            'published': published
+            'published': published,
+            'license': source.get('license', 'UNKNOWN'),
+            'copyright': source.get('copyright', f"© {source['name']}"),
+            'source_url': source['url']
         }
     
     async def _parse_date(self, entry) -> str:
