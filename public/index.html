@@ -29,7 +29,7 @@
           </div>
           <div class="flex gap-2">
             <span class="badge bg-slate-800 text-slate-300">v3.0.8</span>
-            <span class="badge bg-emerald-900/40 text-emerald-300" id="env-badge">production</span>
+            <span class="badge bg-blue-900/40 text-blue-300" id="env-badge">demo</span>
           </div>
         </div>
         <a class="text-sm text-slate-300 hover:text-emerald-300 underline underline-offset-4 transition-colors" href="/status">JSON Status</a>
@@ -44,7 +44,7 @@
             변환하는 AI
           </h2>
           <p class="mt-6 text-xl text-slate-300 max-w-3xl mx-auto">
-            실시간 뉴스 수집 → OpenAI 팩트 추출 → Groq 개인화까지 <span class="text-emerald-400 font-semibold">자동 실행</span><br>
+            실시간 뉴스 수집 → AI 팩트 추출 → 개인화까지 <span class="text-emerald-400 font-semibold">자동 실행</span><br>
             <span class="text-slate-200">특허 기술</span> 기반 듀얼 AI 엔진으로 직업별 맞춤 분석 제공
           </p>
         </div>
@@ -100,11 +100,11 @@
               </button>
             </div>
 
-            <!-- 2. OpenAI 팩트 추출 박스 -->
+            <!-- 2. AI 팩트 추출 박스 -->
             <div class="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-700 p-6">
               <div class="flex items-center gap-2 mb-4">
                 <div class="w-3 h-3 bg-slate-500 rounded-full" id="factDot"></div>
-                <h4 class="font-semibold text-slate-100">2. OpenAI 팩트 추출</h4>
+                <h4 class="font-semibold text-slate-100">2. AI 팩트 추출</h4>
               </div>
               <div 
                 id="factResult"
@@ -116,15 +116,15 @@
                 </div>
               </div>
               <div class="mt-4 text-xs text-slate-400">
-                OpenAI GPT-4o-mini · 정확도: <span id="factTime">0</span>초
+                AI 엔진 · 정확도: <span id="factTime">0</span>초
               </div>
             </div>
 
-            <!-- 3. Groq 개인화 박스 -->
+            <!-- 3. AI 개인화 박스 -->
             <div class="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-700 p-6">
               <div class="flex items-center gap-2 mb-4">
                 <div class="w-3 h-3 bg-slate-500 rounded-full" id="personalizedDot"></div>
-                <h4 class="font-semibold text-slate-100">3. Groq 개인화</h4>
+                <h4 class="font-semibold text-slate-100">3. AI 개인화</h4>
               </div>
               <div 
                 id="personalizedResult"
@@ -136,7 +136,7 @@
                 </div>
               </div>
               <div class="mt-4 text-xs text-slate-400">
-                Groq Llama-3.3-70B · 속도: <span id="totalTime">0</span>초 | 변환: <span id="transformRate">0</span>%
+                AI 엔진 · 속도: <span id="totalTime">0</span>초 | 변환: <span id="transformRate">0</span>%
               </div>
             </div>
           </div>
@@ -182,7 +182,7 @@
             © 2025 AI 뉴스 개인화 플랫폼 · VeraChain Ecosystem · All rights reserved.
           </p>
           <p class="text-xs mt-2 text-slate-500">
-            Powered by FastAPI + MongoDB Atlas + OpenAI GPT-4o-mini + Groq Llama
+            Powered by FastAPI + MongoDB Atlas + AI Engine
           </p>
         </div>
       </div>
@@ -265,7 +265,7 @@
           body: JSON.stringify(profile)
         });
 
-        // 2단계: 실시간 뉴스 수집
+        // 2단계: 뉴스 수집
         document.getElementById('step1-dot').className = 'w-2 h-2 bg-blue-400 rounded-full animate-pulse';
         document.getElementById('crawlingResult').innerHTML = '<div class="animate-pulse text-blue-400">최신 뉴스를 수집하고 있습니다...</div>';
         
@@ -294,17 +294,17 @@
                 <div class="font-semibold text-emerald-300">${article.title}</div>
                 <div class="text-xs text-slate-400">출처: ${article.source}</div>
                 <div class="text-xs text-slate-400">수집: 완료</div>
-                <div class="text-xs text-emerald-400">OpenAI 뉴스 크롤링 성공</div>
+                <div class="text-xs text-emerald-400">뉴스 수집 성공</div>
               </div>
             `;
             
-            // 3단계: OpenAI 팩트 추출 시작
+            // 3단계: AI 팩트 추출 시작
             document.getElementById('step2-dot').className = 'w-2 h-2 bg-yellow-400 rounded-full animate-pulse';
             document.getElementById('factDot').className = 'w-3 h-3 bg-yellow-400 rounded-full animate-pulse';
-            document.getElementById('factResult').innerHTML = '<div class="animate-pulse text-yellow-400">OpenAI가 정확한 팩트를 추출하고 있습니다...</div>';
+            document.getElementById('factResult').innerHTML = '<div class="animate-pulse text-yellow-400">AI가 정확한 팩트를 추출하고 있습니다...</div>';
             
             setTimeout(async () => {
-              // 4단계: Groq 개인화
+              // 4단계: AI 개인화
               document.getElementById('step2-dot').className = 'w-2 h-2 bg-emerald-400 rounded-full';
               document.getElementById('factDot').className = 'w-3 h-3 bg-emerald-400 rounded-full';
               document.getElementById('step3-dot').className = 'w-2 h-2 bg-purple-400 rounded-full animate-pulse';
@@ -331,7 +331,7 @@
                       <div class="mt-2 p-2 bg-slate-700/30 rounded text-xs">
                         <strong>핵심 수치:</strong> ${JSON.stringify(facts.numbers || {})}
                       </div>
-                      <div class="text-xs text-emerald-400">실제 OpenAI 팩트 추출 완료</div>
+                      <div class="text-xs text-emerald-400">AI 팩트 추출 완료</div>
                     </div>
                   `;
                 }
@@ -343,7 +343,7 @@
               }
               
               // 개인화 시작
-              document.getElementById('personalizedResult').innerHTML = `<div class="animate-pulse text-purple-400">Groq이 ${selectedJob} 관점으로 개인화하고 있습니다...</div>`;
+              document.getElementById('personalizedResult').innerHTML = `<div class="animate-pulse text-purple-400">AI가 ${selectedJob} 관점으로 개인화하고 있습니다...</div>`;
               
               // 실제 개인화 API 호출 시도
               try {
