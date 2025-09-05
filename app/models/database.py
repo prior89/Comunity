@@ -50,7 +50,15 @@ class Database:
         finally:
             conn.close()
     
-    async def _configure_connection(self, conn):\n        \"\"\"aiosqlite 연결 최적화 설정\"\"\"\n        await conn.execute(\"PRAGMA journal_mode=WAL;\")\n        await conn.execute(\"PRAGMA synchronous=NORMAL;\")\n        await conn.execute(\"PRAGMA cache_size=-65536;\")\n        await conn.execute(\"PRAGMA temp_store=MEMORY;\")\n        await conn.execute(\"PRAGMA mmap_size=268435456;\")\n        await conn.execute(\"PRAGMA foreign_keys=ON;\")\n        await conn.execute(\"PRAGMA busy_timeout=5000;\")
+    async def _configure_connection(self, conn):
+        """aiosqlite 연결 최적화 설정"""
+        await conn.execute("PRAGMA journal_mode=WAL;")
+        await conn.execute("PRAGMA synchronous=NORMAL;")
+        await conn.execute("PRAGMA cache_size=-65536;")
+        await conn.execute("PRAGMA temp_store=MEMORY;")
+        await conn.execute("PRAGMA mmap_size=268435456;")
+        await conn.execute("PRAGMA foreign_keys=ON;")
+        await conn.execute("PRAGMA busy_timeout=5000;")
     
     def init_db(self):
         """데이터베이스 초기화"""
