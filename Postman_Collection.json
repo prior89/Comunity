@@ -1,0 +1,165 @@
+{
+  "info": {
+    "name": "AI News Personalization API",
+    "description": "AI 뉴스 개인화 플랫폼 API 테스트 컬렉션",
+    "version": "3.0.8"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{API_TOKEN}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "https://your-api-domain.up.railway.app",
+      "type": "string"
+    },
+    {
+      "key": "API_TOKEN", 
+      "value": "your-api-token-here",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{BASE_URL}}/api/system/health",
+          "host": ["{{BASE_URL}}"],
+          "path": ["api", "system", "health"]
+        }
+      }
+    },
+    {
+      "name": "2. Get Latest Articles",
+      "request": {
+        "method": "GET", 
+        "header": [],
+        "url": {
+          "raw": "{{BASE_URL}}/api/news/articles?limit=1",
+          "host": ["{{BASE_URL}}"],
+          "path": ["api", "news", "articles"],
+          "query": [
+            {
+              "key": "limit",
+              "value": "1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "3. Create User Profile",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type", 
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": \"demo_investor\",\n  \"age\": 40,\n  \"job_categories\": [\"Investment\"],\n  \"interests_finance\": [\"주식\", \"부동산\"],\n  \"reading_mode\": \"concise\"\n}"
+        },
+        "url": {
+          "raw": "{{BASE_URL}}/api/users/profiles",
+          "host": ["{{BASE_URL}}"],
+          "path": ["api", "users", "profiles"]
+        }
+      }
+    },
+    {
+      "name": "4. Personalize Article (투자자)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"  
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"article_id\": \"7e080ac387ce52a4dbfad9e3\",\n  \"user_id\": \"demo_investor\"\n}"
+        },
+        "url": {
+          "raw": "{{BASE_URL}}/api/news/personalize",
+          "host": ["{{BASE_URL}}"],
+          "path": ["api", "news", "personalize"]
+        }
+      }
+    },
+    {
+      "name": "5. Personalize Article (사업가)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw", 
+          "raw": "{\n  \"article_id\": \"7e080ac387ce52a4dbfad9e3\",\n  \"user_id\": \"demo_entrepreneur\"\n}"
+        },
+        "url": {
+          "raw": "{{BASE_URL}}/api/news/personalize",
+          "host": ["{{BASE_URL}}"],
+          "path": ["api", "news", "personalize"]
+        }
+      }
+    },
+    {
+      "name": "6. Performance Metrics",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{BASE_URL}}/api/dashboard/metrics?hours=24",
+          "host": ["{{BASE_URL}}"],
+          "path": ["api", "dashboard", "metrics"],
+          "query": [
+            {
+              "key": "hours",
+              "value": "24"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "7. Force News Collection", 
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{API_TOKEN}}"
+          }
+        ],
+        "url": {
+          "raw": "{{BASE_URL}}/api/news/refresh?force=1",
+          "host": ["{{BASE_URL}}"],
+          "path": ["api", "news", "refresh"],
+          "query": [
+            {
+              "key": "force", 
+              "value": "1"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
