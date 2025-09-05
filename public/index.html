@@ -308,12 +308,12 @@
       });
     });
 
-    // 자동 분석 실행 (도훈님: 중복 실행 방지)
-    const autoDemoBtn = document.getElementById('autoDemoBtn');
-    autoDemoBtn.onclick = null;  // 기존 핸들러 제거
-    autoDemoBtn.onclick = async () => {
-      if (inFlight) return;  // 중복 실행 방지
+    // 자동 분석 실행
+    document.getElementById('autoDemoBtn').addEventListener('click', async () => {
+      if (inFlight) return;  // 도훈님: 중복 실행 방지
       inFlight = true;
+      
+      const autoDemoBtn = document.getElementById('autoDemoBtn');
       autoDemoBtn.disabled = true;
       setText('autoDemoBtn', selectedJob + ' 분석 실행 중...');
       
