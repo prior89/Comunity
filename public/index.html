@@ -291,6 +291,7 @@
     };
 
     let selectedJob = '투자자';
+    let inFlight = false;  // 도훈님 중복 방지 가드
 
     // 직업 선택 이벤트
     document.querySelectorAll('.job-btn').forEach(btn => {
@@ -307,9 +308,12 @@
       });
     });
 
-    // 자동 분석 실행
-    document.getElementById('autoDemoBtn').addEventListener('click', async () => {
-      const autoDemoBtn = document.getElementById('autoDemoBtn');
+    // 자동 분석 실행 (도훈님: 중복 실행 방지)
+    const autoDemoBtn = document.getElementById('autoDemoBtn');
+    autoDemoBtn.onclick = null;  // 기존 핸들러 제거
+    autoDemoBtn.onclick = async () => {
+      if (inFlight) return;  // 중복 실행 방지
+      inFlight = true;
       autoDemoBtn.disabled = true;
       setText('autoDemoBtn', selectedJob + ' 분석 실행 중...');
       
@@ -477,6 +481,8 @@
                 return; // catch 블록에서 함수 종료
               }
               
+              // finally: 상태 복구 (도훈님 inFlight 가드)
+              inFlight = false;
               autoDemoBtn.disabled = false;
               autoDemoBtn.textContent = '개인화 맞춤 AI 분석 시작';
               
@@ -486,6 +492,8 @@
 
       } catch (error) {
         console.error('자동 분석 오류:', error);
+        // 에러 시에도 상태 복구
+        inFlight = false;
         autoDemoBtn.disabled = false;
         autoDemoBtn.textContent = '개인화 맞춤 AI 분석 시작';
         alert('분석 중 오류가 발생했습니다.');
