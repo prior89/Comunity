@@ -30,7 +30,8 @@
       "Bash(npx:*)",
       "WebFetch(domain:www.kodit.co.kr)",
       "WebFetch(domain:www.kibo.or.kr)",
-      "Bash(claude --version)"
+      "Bash(claude --version)",
+      "Bash(pip install:*)"
     ],
     "deny": [],
     "ask": []

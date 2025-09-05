@@ -259,7 +259,7 @@ class NewsProcessor:
         """개인화 콘텐츠 생성 (캐시 최적화)"""
         
         # 사용자 프로필 조회 (없으면 스텁 생성)
-        profile = self.db.get_user_profile(user_id)
+        profile = await self.db.get_user_profile(user_id)
         if not profile:
             # 스텁 프로필 생성 (user_id 기반 개인화)
             from ..models.schemas import UserProfile
@@ -313,16 +313,18 @@ class NewsProcessor:
         # if cached_content:
         
         # 팩트와 원본 기사 조회
-        facts = self.db.get_facts(article_id)
+        facts = await self.db.get_facts(article_id)
         if not facts:
             raise ValueError("팩트를 찾을 수 없습니다")
             
-        # 원본 기사 제목 조회
-        with self.db.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT title FROM original_articles WHERE id = ?', (article_id,))
-            row = cursor.fetchone()
-            original_title = row['title'] if row else facts.what
+        # 원본 기사 제목 조회 (비동기)
+        import aiosqlite
+        async with aiosqlite.connect(self.db.db_path) as conn:
+            conn.row_factory = aiosqlite.Row
+            await self.db._configure_connection(conn)
+            async with conn.execute('SELECT title FROM original_articles WHERE id = ?', (article_id,)) as cursor:
+                row = await cursor.fetchone()
+                original_title = row['title'] if row else facts.what
         
         # 원본 ai_engine으로 되돌림 (정확한 구현)
         personalized = await self.ai_engine.rewrite_for_user(facts, profile, original_title)

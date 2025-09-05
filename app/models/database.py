@@ -2,9 +2,10 @@
 데이터베이스 관리 (SQLite WAL 모드 최적화)
 """
 import sqlite3
+import aiosqlite
 import json
 import asyncio
-from contextlib import contextmanager
+from contextlib import contextmanager, asynccontextmanager
 from typing import Optional, Dict, Any
 from dataclasses import asdict
 
@@ -48,6 +49,8 @@ class Database:
             yield conn
         finally:
             conn.close()
+    
+    async def _configure_connection(self, conn):\n        \"\"\"aiosqlite 연결 최적화 설정\"\"\"\n        await conn.execute(\"PRAGMA journal_mode=WAL;\")\n        await conn.execute(\"PRAGMA synchronous=NORMAL;\")\n        await conn.execute(\"PRAGMA cache_size=-65536;\")\n        await conn.execute(\"PRAGMA temp_store=MEMORY;\")\n        await conn.execute(\"PRAGMA mmap_size=268435456;\")\n        await conn.execute(\"PRAGMA foreign_keys=ON;\")\n        await conn.execute(\"PRAGMA busy_timeout=5000;\")
     
     def init_db(self):
         """데이터베이스 초기화"""
@@ -188,32 +191,34 @@ class Database:
         
         logger.info("프로필 저장 완료", user_id=profile.user_id[:10])
     
-    def get_user_profile(self, user_id: str) -> Optional[UserProfile]:
-        """사용자 프로필 조회"""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT * FROM user_profiles WHERE user_id = ?', (user_id[:64],))
-            row = cursor.fetchone()
+    async def get_user_profile(self, user_id: str) -> Optional[UserProfile]:
+        """사용자 프로필 조회 (비동기)"""
+        async with aiosqlite.connect(self.db_path) as conn:
+            conn.row_factory = aiosqlite.Row
+            await self._configure_connection(conn)
             
-            if row:
-                return UserProfile(
-                    user_id=row['user_id'],
-                    age=row['age'],
-                    gender=row['gender'],
-                    location=row['location'],
-                    job_categories=json.loads(row['job_categories']),
-                    interests_finance=json.loads(row['interests_finance']),
-                    interests_lifestyle=json.loads(row['interests_lifestyle']),
-                    interests_hobby=json.loads(row['interests_hobby']),
-                    interests_tech=json.loads(row['interests_tech']),
-                    work_style=row['work_style'],
-                    family_status=row['family_status'],
-                    living_situation=row['living_situation'],
-                    reading_mode=row['reading_mode'],
-                    created_at=row['created_at'],
-                    updated_at=row['updated_at']
-                )
-            return None
+            async with conn.execute('SELECT * FROM user_profiles WHERE user_id = ?', (user_id[:64],)) as cursor:
+                row = await cursor.fetchone()
+                
+                if row:
+                    return UserProfile(
+                        user_id=row['user_id'],
+                        age=row['age'],
+                        gender=row['gender'],
+                        location=row['location'],
+                        job_categories=json.loads(row['job_categories']),
+                        interests_finance=json.loads(row['interests_finance']),
+                        interests_lifestyle=json.loads(row['interests_lifestyle']),
+                        interests_hobby=json.loads(row['interests_hobby']),
+                        interests_tech=json.loads(row['interests_tech']),
+                        work_style=row['work_style'],
+                        family_status=row['family_status'],
+                        living_situation=row['living_situation'],
+                        reading_mode=row['reading_mode'],
+                        created_at=row['created_at'],
+                        updated_at=row['updated_at']
+                    )
+                return None
     
     def save_article(self, article: Dict[str, Any]) -> bool:
         """기사 저장"""
@@ -252,20 +257,22 @@ class Database:
                 now_kst()
             ))
     
-    def get_facts(self, article_id: str) -> Optional[ExtractedFacts]:
-        """팩트 조회"""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
+    async def get_facts(self, article_id: str) -> Optional[ExtractedFacts]:
+        """팩트 조회 (비동기)"""
+        async with aiosqlite.connect(self.db_path) as conn:
+            conn.row_factory = aiosqlite.Row
+            await self._configure_connection(conn)
+            
+            async with conn.execute(
                 'SELECT facts_json FROM extracted_facts WHERE article_id = ?', 
                 (article_id,)
-            )
-            row = cursor.fetchone()
-            
-            if row:
-                facts_dict = json.loads(row['facts_json'])
-                return ExtractedFacts(**facts_dict)
-            return None
+            ) as cursor:
+                row = await cursor.fetchone()
+                
+                if row:
+                    facts_dict = json.loads(row['facts_json'])
+                    return ExtractedFacts(**facts_dict)
+                return None
     
     def save_personalized_content(self, content_id: str, article_id: str, 
                                  user_id: str, profile_hash: str, 
