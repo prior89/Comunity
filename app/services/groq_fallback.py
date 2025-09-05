@@ -3,6 +3,7 @@ Groq 모델 자동 폴백 시스템 - 모델 폐기 시 자동 대응
 """
 import os
 import asyncio
+import time
 from groq import AsyncGroq, APIStatusError, APIConnectionError, APITimeoutError, RateLimitError
 from openai import AsyncOpenAI
 from ..core.logging import get_logger
@@ -52,15 +53,19 @@ async def _try_groq(messages, temperature=0.2, max_tokens=900):
         
         for attempt in range(3):  # 모델당 3회 재시도
             try:
+                start_time = time.time()
                 r = await client.chat.completions.create(
                     model=model_name,
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens
                 )
+                end_time = time.time()
+                response_time = end_time - start_time
+                
                 txt = (r.choices[0].message.content or "").strip()
                 if txt:
-                    logger.info(f"Groq 성공: {model_name}")
+                    logger.info(f"Groq 성공: {model_name}, 응답시간: {response_time:.2f}초")
                     return {
                         "provider": "groq",
                         "model": model_name, 
