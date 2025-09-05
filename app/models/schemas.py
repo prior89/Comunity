@@ -203,5 +203,5 @@ REWRITE_SCHEMA = {
         },
         "disclaimer": {"type": "string", "maxLength": 300}
     },
-    "required": ["title", "content", "key_points", "reading_time", "disclaimer"]
+    "required": ["title", "content", "key_points", "reading_time"]
 }

@@ -38,18 +38,18 @@ class NewsCollector:
                 'copyright': '© SBS. All rights reserved.'
             },
             {
-                'name': 'KBS뉴스', 
-                'url': 'http://world.kbs.co.kr/rss/rss_news.htm?lang=k',
+                'name': '노컷뉴스',
+                'url': 'http://rss.nocutnews.co.kr/nocutnews.xml',
                 'category': 'general',
                 'license': 'RSS_PUBLIC',
-                'copyright': '© KBS. All rights reserved.'
+                'copyright': '© 노컷뉴스. All rights reserved.'
             },
             {
-                'name': 'MBC뉴스',
-                'url': 'https://imnews.imbc.com/rss/news/news_00.xml', 
+                'name': '조선닷컴',
+                'url': 'http://www.chosun.com/site/data/rss/rss.xml',
                 'category': 'general',
-                'license': 'RSS_PUBLIC', 
-                'copyright': '© MBC. All rights reserved.'
+                'license': 'RSS_PUBLIC',
+                'copyright': '© 조선닷컴. All rights reserved.'
             }
         ]
         self.session_timeout = aiohttp.ClientTimeout(total=settings.collect_timeout)
@@ -75,7 +75,7 @@ class NewsCollector:
                     return []
                 
                 articles = []
-                for entry in feed.entries[:10]:  # 최대 10개 항목만 처리
+                for entry in feed.entries[:1]:  # 최대 1개 항목만 처리
                     article = await self._process_entry(entry, source)
                     if article and validate_article_content(article):
                         articles.append(article)
