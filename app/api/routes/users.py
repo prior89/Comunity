@@ -18,7 +18,6 @@ router = APIRouter(prefix="/api/users", tags=["users"])
 @router.post("/profiles")
 async def create_user_profile(
     profile_request: UserProfileCreateRequest,
-    db: Database = Depends(get_database),
     request_info: Dict[str, str] = Depends(log_request_info)
 ):
     """사용자 프로필 생성 (방어적 구현 - 절대 503 금지)"""
@@ -27,9 +26,8 @@ async def create_user_profile(
                user_id=profile_request.user_id[:10],
                **request_info)
     
-    try:
-        # 도훈님 방어형 패턴: 간단하고 안전한 프로필 생성
-        profile_dict = {
+    # 도훈님 Step1: 절대 503 없는 안전한 프로필 생성 (DB 의존성 제거)
+    profile_dict = {
             "role": getattr(profile_request, 'job_categories', ['투자자'])[0] if getattr(profile_request, 'job_categories', None) else "투자자",
             "interests": (getattr(profile_request, 'interests_finance', []) + 
                          getattr(profile_request, 'interests_lifestyle', []) + 
@@ -39,32 +37,14 @@ async def create_user_profile(
             "reading_mode": "insight"
         }
         
-        logger.info("프로필 생성 성공", user_id=profile_request.user_id[:10])
-        return {
-            "ok": True, 
-            "profile": profile_dict,
-            "provider": "simplified"
-        }
-        
-    except Exception as e:
-        logger.error("프로필 생성 실패", 
-                    error=str(e),
-                    user_id=profile_request.user_id[:10])
-        
-        # 도훈님 방어 패턴: 절대 503 금지, 항상 200 JSON
-        print(f"[profiles] build failed: {type(e).__name__} {e}")
-        stub = {
-            "role": getattr(profile_request, 'job_categories', ['투자자'])[0] if getattr(profile_request, 'job_categories', None) else "투자자", 
-            "interests": [],
-            "lang": "ko",
-            "reading_mode": "insight"
-        }
-        return {
-            "ok": False,
-            "profile": stub, 
-            "provider": "stub",
-            "reason": str(e)[:300]
-        }
+    logger.info("프로필 생성 성공 (Step1: 503 방지)", user_id=profile_request.user_id[:10])
+    
+    # 절대 예외 없이 항상 200 반환
+    return {
+        "ok": True, 
+        "profile": profile_dict,
+        "provider": "step1_stable"
+    }
 
 
 @router.get("/profiles/{user_id}")
