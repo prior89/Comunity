@@ -31,7 +31,8 @@
       "WebFetch(domain:www.kodit.co.kr)",
       "WebFetch(domain:www.kibo.or.kr)",
       "Bash(claude --version)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []

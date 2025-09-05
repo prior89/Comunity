@@ -168,28 +168,33 @@ async def get_article(
     logger.debug("기사 상세 요청", article_id=article_id, **request_info)
     
     try:
-        with processor.db.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
+        import aiosqlite
+        
+        # 기사 정보 비동기 조회
+        async with aiosqlite.connect(processor.db.db_path) as conn:
+            conn.row_factory = aiosqlite.Row
+            await processor.db._configure_connection(conn)
+            
+            async with conn.execute('''
                 SELECT * FROM original_articles WHERE id = ?
-            ''', (article_id,))
-            
-            row = cursor.fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="기사를 찾을 수 없습니다")
-            
-            article = {
-                "id": row['id'],
-                "title": row['title'],
-                "content": row['content'],
-                "source": row['source'],
-                "url": row['url'],
-                "published": row['published'],
-                "collected_at": row['collected_at']
-            }
-            
-            # 팩트 정보도 함께 조회
-            facts = processor.db.get_facts(article_id)
+            ''', (article_id,)) as cursor:
+                row = await cursor.fetchone()
+                
+                if not row:
+                    raise HTTPException(status_code=404, detail="기사를 찾을 수 없습니다")
+                
+                article = {
+                    "id": row['id'],
+                    "title": row['title'],
+                    "content": row['content'],
+                    "source": row['source'],
+                    "url": row['url'],
+                    "published": row['published'],
+                    "collected_at": row['collected_at']
+                }
+        
+        # 팩트 정보도 함께 조회 (비동기)
+        facts = await processor.db.get_facts(article_id)
             if facts:
                 article["facts"] = {
                     "who": facts.who,

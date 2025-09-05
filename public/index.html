@@ -195,7 +195,7 @@
     function setText(id, value) {
       const el = document.getElementById(id);
       if (!el) { 
-        console.error(`[UI] element #${id} not found`); 
+        console.warn(`[UI] element #${id} not found - skipping`); 
         return; 
       }
       el.textContent = value ?? '';
