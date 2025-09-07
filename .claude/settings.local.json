@@ -32,7 +32,9 @@
       "WebFetch(domain:www.kibo.or.kr)",
       "Bash(claude --version)",
       "Bash(pip install:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(git merge:*)",
+      "Bash(git cherry-pick:*)"
     ],
     "deny": [],
     "ask": []
