@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     
     # 보안 설정
     internal_api_key: Optional[str] = None
+    jwt_secret: Optional[str] = None  # JWT 시크릿 키 추가
     trusted_proxies: List[str] = []
     
     # 데이터베이스 설정

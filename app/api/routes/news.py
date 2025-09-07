@@ -195,8 +195,8 @@ async def get_article(
         
         # 팩트 정보도 함께 조회 (비동기)
         facts = await processor.db.get_facts(article_id)
-            if facts:
-                article["facts"] = {
+        if facts:
+            article["facts"] = {
                     "who": facts.who,
                     "what": facts.what,
                     "when": facts.when,

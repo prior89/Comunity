@@ -34,7 +34,10 @@
       "Bash(pip install:*)",
       "Bash(python:*)",
       "Bash(git merge:*)",
-      "Bash(git cherry-pick:*)"
+      "Bash(git cherry-pick:*)",
+      "Read(//c/Users/User/Downloads/**)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)"
     ],
     "deny": [],
     "ask": []

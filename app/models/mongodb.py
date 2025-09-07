@@ -20,7 +20,7 @@ class MongoDatabase:
     
     def __init__(self, connection_string: str = None):
         self.connection_string = connection_string or settings.mongodb_uri or "mongodb://localhost:27017"
-        self.database_name = "kkalkalnews"
+        self.database_name = "verachain-community"  # 코인 커뮤니티용 DB명
         self.client = None
         self.db = None
     
@@ -45,27 +45,36 @@ class MongoDatabase:
             return False
     
     async def create_indexes(self):
-        """인덱스 생성"""
+        """코인 커뮤니티용 인덱스 생성"""
         try:
-            # 기사 컬렉션 인덱스
-            await self.db.articles.create_index([("id", ASCENDING)], unique=True)
-            await self.db.articles.create_index([("published", DESCENDING)])
-            await self.db.articles.create_index([("collected_at", DESCENDING)])
+            # 사용자 컬렉션 인덱스
+            await self.db.users.create_index([("id", ASCENDING)], unique=True)
+            await self.db.users.create_index([("email", ASCENDING)], unique=True)
+            await self.db.users.create_index([("nickname", ASCENDING)], unique=True)
             
-            # 사용자 프로필 인덱스
-            await self.db.user_profiles.create_index([("user_id", ASCENDING)], unique=True)
+            # 게시물 컬렉션 인덱스
+            await self.db.posts.create_index([("id", ASCENDING)], unique=True)
+            await self.db.posts.create_index([("author_id", ASCENDING)])
+            await self.db.posts.create_index([("category", ASCENDING)])
+            await self.db.posts.create_index([("created_at", DESCENDING)])
+            await self.db.posts.create_index([("upvotes", DESCENDING)])
             
-            # 사용자 활동 인덱스
-            await self.db.user_activity.create_index([("user_id", ASCENDING)])
-            await self.db.user_activity.create_index([("timestamp", DESCENDING)])
+            # 댓글 컬렉션 인덱스
+            await self.db.comments.create_index([("id", ASCENDING)], unique=True)
+            await self.db.comments.create_index([("post_id", ASCENDING)])
+            await self.db.comments.create_index([("author_id", ASCENDING)])
             
-            # 개인화 캐시 인덱스
-            await self.db.personalization_cache.create_index([
-                ("article_id", ASCENDING), 
-                ("user_id", ASCENDING)
-            ], unique=True)
+            # 채팅 메시지 인덱스
+            await self.db.chat_messages.create_index([("id", ASCENDING)], unique=True)
+            await self.db.chat_messages.create_index([("channel", ASCENDING)])
+            await self.db.chat_messages.create_index([("created_at", DESCENDING)])
             
-            logger.info("MongoDB 인덱스 생성 완료")
+            # 분석 이벤트 인덱스
+            await self.db.analytics_events.create_index([("event_id", ASCENDING)], unique=True)
+            await self.db.analytics_events.create_index([("user_id", ASCENDING)])
+            await self.db.analytics_events.create_index([("created_at", DESCENDING)])
+            
+            logger.info("VeraChain 코인 커뮤니티 인덱스 생성 완료")
             
         except Exception as e:
             logger.error("인덱스 생성 실패", error=str(e))
