@@ -357,10 +357,11 @@ if __name__ == "__main__":
     import uvicorn
     
     logger.info("개발 서버 시작", port=8000)
+    port = int(os.environ.get("PORT", 8000))
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8000,
+        port=port,
         reload=settings.debug,
         log_level="info"
     )
