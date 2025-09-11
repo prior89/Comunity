@@ -388,7 +388,7 @@
                   console.log("개인화 API 성공:", personalizedData);
                 
                   // 완전 완료
-                  document.getElementById('step3-dot').className = 'w-2 h-2 bg-emerald-400 rounded-full';
+                  document.getElementById('step2-dot').className = 'w-2 h-2 bg-emerald-400 rounded-full';
                   document.getElementById('personalizedDot').className = 'w-3 h-3 bg-emerald-400 rounded-full';
                   
                   const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -427,7 +427,7 @@
                 console.error('개인화 API 오류:', personalizeError);
                 
                 // API 실패 시 에러 표시
-                document.getElementById('step3-dot').className = 'w-2 h-2 bg-red-400 rounded-full';
+                document.getElementById('step2-dot').className = 'w-2 h-2 bg-red-400 rounded-full';
                 document.getElementById('personalizedDot').className = 'w-3 h-3 bg-red-400 rounded-full';
                 
                 const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
